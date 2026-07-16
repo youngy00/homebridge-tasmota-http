@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { Logging } from 'homebridge';
 
 export interface DiscoveredTasmotaDevice {
   ip: string;
@@ -22,7 +23,10 @@ export interface DiscoveredTasmotaDevice {
 
 export class TasmotaDiscovery {
 
+  private readonly concurrency = 25;
+
   constructor(
+    private readonly log: Logging,
     private readonly timeout = 1000,
   ) {}
 
@@ -30,14 +34,14 @@ export class TasmotaDiscovery {
     ip: string,
   ): Promise<DiscoveredTasmotaDevice | null> {
 
-    const status0 = await this.request(ip, 'Status 0');
+    const [status0, status11] = await Promise.all([
+      this.request(ip, 'Status 0'),
+      this.request(ip, 'Status 11'),
+    ]);
 
     if (!status0?.Status) {
       return null;
     }
-
-    const status11 = await this.request(ip, 'Status 11');
-
     const sts =
       status11?.StatusSTS ??
       status11?.Status11 ??
@@ -92,6 +96,58 @@ export class TasmotaDiscovery {
     };
   }
 
+  public async scanSubnet(
+  subnet: string,
+): Promise<DiscoveredTasmotaDevice[]> {
+
+  const results: DiscoveredTasmotaDevice[] = [];
+
+  let currentIp = 1;
+
+  const worker = async () => {
+
+    while (currentIp <= 254) {
+
+      const host = currentIp++;
+
+      const ip = `${subnet}.${host}`;
+
+      const device = await this.discoverHost(ip);
+
+      if (device) {
+        this.log.info(
+        `Discovered ${device.friendlyName} (${device.ip})`,
+        );
+
+        results.push(device);
+
+      }
+
+    }
+
+  };
+
+  const workers = [];
+
+  for (let i = 0; i < this.concurrency; i++) {
+    workers.push(worker());
+  }
+
+  await Promise.all(workers);
+
+  results.sort((a, b) =>
+    a.ip.localeCompare(
+      b.ip,
+      undefined,
+      {
+        numeric: true,
+      },
+    ),
+  );
+
+  return results;
+
+}
   private determineType(
     power: boolean,
     dimmer: boolean,
