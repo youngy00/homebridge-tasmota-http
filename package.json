@@ -1,28 +1,55 @@
 {
-  "name": "homebridge-tasmota-http",
-  "displayName": "Homebridge Tasmota HTTP",
-  "version": "1.0.0",
-  "description": "HTTP-only Homebridge dynamic platform for Tasmota lights",
+  "name": "homebridge-tasmota-local",
+  "displayName": "Homebridge Tasmota Local",
+  "version": "0.2.0",
+  "description": "Native HTTP Homebridge platform for Tasmota devices",
+
+  "author": {
+    "name": "youngy00",
+    "url": "https://github.com/youngy00"
+  },
+
+  "homepage": "https://github.com/youngy00/homebridge-tasmota-http",
+
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/youngy00/homebridge-tasmota-http.git"
+  },
+
+  "bugs": {
+    "url": "https://github.com/youngy00/homebridge-tasmota-http/issues"
+  },
+
   "license": "MIT",
+
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+
   "keywords": [
     "homebridge-plugin",
+    "homebridge",
     "tasmota",
-    "http"
+    "http",
+    "local",
+    "iot",
+    "apple-home"
   ],
+
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -w -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
+
   "engines": {
     "node": ">=18.0.0",
     "homebridge": ">=2.1.1"
   },
+
   "peerDependencies": {
     "homebridge": "^2.1.1"
   },
+
   "devDependencies": {
     "@types/node": "^22.10.0",
     "typescript": "^5.8.3"
