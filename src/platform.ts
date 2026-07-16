@@ -16,6 +16,8 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
   private readonly config: TasmotaPlatformConfig;
   private readonly api: API;
+  private readonly cachedAccessories = new Map<string, PlatformAccessory>();
+  private readonly configuredAccessories = new Set<string>();
 
   constructor(log: Logging, config: PlatformConfig, api: API) {
     this.log = log;
@@ -36,20 +38,55 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
       return;
     }
 
+    this.cachedAccessories.set(accessory.UUID, accessory);
+    if (this.configuredAccessories.has(accessory.UUID)) {
+      return;
+    }
+
+    this.configuredAccessories.add(accessory.UUID);
     this.log.debug(`Configuring accessory from cache: ${accessory.displayName}`);
     new TasmotaLightAccessory(this, accessory, device);
   }
 
   private discoverDevices(): void {
     const devices = Array.isArray(this.config.devices) ? this.config.devices : [];
+    const desiredAccessoryIds = new Set<string>();
+    const accessoriesToRegister: PlatformAccessory[] = [];
+
     for (const device of devices) {
-      const uuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${device.name}:${device.host}:${device.port ?? 80}`);
-      const accessory = new this.api.platformAccessory(device.name, uuid);
-      accessory.context.device = device;
-      accessory.addService(this.Service.AccessoryInformation);
-      accessory.addService(this.Service.Lightbulb, device.name, device.name);
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      const uuid = this.getAccessoryUuid(device);
+      desiredAccessoryIds.add(uuid);
+
+      let accessory = this.cachedAccessories.get(uuid);
+      if (!accessory) {
+        accessory = new this.api.platformAccessory(device.name, uuid);
+        accessory.context.device = device;
+        this.cachedAccessories.set(uuid, accessory);
+        accessoriesToRegister.push(accessory);
+      } else {
+        accessory.context.device = device;
+      }
+    }
+
+    if (accessoriesToRegister.length > 0) {
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, accessoriesToRegister);
+    }
+
+    for (const accessory of accessoriesToRegister) {
       this.configureAccessory(accessory);
     }
+
+    const staleAccessories = Array.from(this.cachedAccessories.values()).filter((accessory) => !desiredAccessoryIds.has(accessory.UUID));
+    if (staleAccessories.length > 0) {
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, staleAccessories);
+      staleAccessories.forEach((accessory) => {
+        this.cachedAccessories.delete(accessory.UUID);
+        this.configuredAccessories.delete(accessory.UUID);
+      });
+    }
+  }
+
+  private getAccessoryUuid(device: TasmotaDeviceConfig): string {
+    return this.api.hap.uuid.generate(`${PLUGIN_NAME}:${device.name}:${device.host}:${device.port ?? 80}`);
   }
 }
