@@ -8,7 +8,10 @@ import {
 } from 'homebridge';
 
 import { TasmotaLightAccessory } from './accessory';
-import { TasmotaDiscovery } from './discovery';
+import {
+  TasmotaDiscovery,
+  DiscoveredTasmotaDevice,
+} from './discovery';
 import {
   TasmotaDeviceConfig,
   TasmotaPlatformConfig,
@@ -20,10 +23,13 @@ export const PLATFORM_NAME = 'TasmotaHttp';
 
 export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
+
+  
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
   public readonly log: Logging;
 
+  private discoveredDevices: DiscoveredTasmotaDevice[] = [];
   private readonly config: TasmotaPlatformConfig;
   private readonly api: API;
 
@@ -57,10 +63,12 @@ this.api.on('didFinishLaunching', async () => {
       this.log,
     );
 
-    const devices =
+    this.discoveredDevices =
       await discovery.scanSubnet(
-        this.config.scanSubnet,
-      );
+       this.config.scanSubnet,
+     );
+
+    const devices = this.discoveredDevices;
 
     this.log.info(
       `Discovery complete. Found ${devices.length} device(s).`,
@@ -213,6 +221,11 @@ this.api.on('didFinishLaunching', async () => {
     }
 
     this.log.info('Platform initialisation complete.');
+  }
+  public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
+
+    return [...this.discoveredDevices];
+
   }
 
   private getAccessoryUuid(
