@@ -5,6 +5,12 @@
   "schema": {
     "type": "object",
     "properties": {
+      "scanSubnet": {
+        "title": "Scan Subnet",
+        "type": "string",
+        "placeholder": "10.0.1",
+        "description": "Developer option to scan the subnet for Tasmota devices."
+      },
       "devices": {
         "type": "array",
         "items": {
@@ -24,10 +30,13 @@
             },
             "pollInterval": {
               "type": "integer",
-              "default": 15
+              "default": 2
             }
           },
-          "required": ["name", "host"]
+          "required": [
+            "name",
+            "host"
+          ]
         }
       }
     }

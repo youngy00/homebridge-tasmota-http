@@ -1,3 +1,10 @@
+import { PlatformConfig } from 'homebridge';
+
+export interface TasmotaPlatformConfig extends PlatformConfig {
+  devices: TasmotaDeviceConfig[];
+  scanSubnet?: string;
+}
+
 export interface TasmotaDeviceConfig {
   name: string;
   host: string;

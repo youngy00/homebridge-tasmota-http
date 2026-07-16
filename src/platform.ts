@@ -4,19 +4,19 @@ import {
   DynamicPlatformPlugin,
   Logging,
   PlatformAccessory,
-  PlatformConfig,
   Service,
 } from 'homebridge';
 
 import { TasmotaLightAccessory } from './accessory';
-import { TasmotaDeviceConfig } from './types';
+import { TasmotaDiscovery } from './discovery';
+import {
+  TasmotaDeviceConfig,
+  TasmotaPlatformConfig,
+} from './types';
 
 export const PLUGIN_NAME = 'homebridge-tasmota-local';
 export const PLATFORM_NAME = 'TasmotaHttp';
 
-interface TasmotaPlatformConfig extends PlatformConfig {
-  devices?: TasmotaDeviceConfig[];
-}
 
 export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
@@ -30,22 +30,53 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
   private readonly configuredAccessories = new Set<string>();
 
-  constructor(
-    log: Logging,
-    config: PlatformConfig,
-    api: API,
-  ) {
+constructor(
+  log: Logging,
+  config: TasmotaPlatformConfig,
+  api: API,
+) {
 
-    this.log = log;
-    this.config = config as TasmotaPlatformConfig;
+  this.log = log;
+  this.config = config;
     this.api = api;
 
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
 
-    this.api.on('didFinishLaunching', () => {
-      this.discoverDevices();
-    });
+this.api.on('didFinishLaunching', async () => {
+
+  this.discoverDevices();
+
+  if (this.config.scanSubnet) {
+
+    this.log.info(
+      `Scanning subnet ${this.config.scanSubnet}.0/24...`,
+    );
+
+    const discovery = new TasmotaDiscovery(
+      this.log,
+    );
+
+    const devices =
+      await discovery.scanSubnet(
+        this.config.scanSubnet,
+      );
+
+    this.log.info(
+      `Discovery complete. Found ${devices.length} device(s).`,
+    );
+
+    for (const device of devices) {
+
+      this.log.info(
+        ` • ${device.friendlyName} (${device.ip}) [${device.suggestedType}]`,
+      );
+
+    }
+
+  }
+
+});
   }
 
   public configureAccessory(accessory: PlatformAccessory): void {
@@ -82,7 +113,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
       : [];
 
     this.log.info('────────────────────────────────────');
-    this.log.info('Homebridge Tasmota Local v0.2.1');
+    this.log.info('Homebridge Tasmota Local v0.3.0');
     this.log.info(`Configured devices : ${devices.length}`);
     this.log.info('────────────────────────────────────');
 
