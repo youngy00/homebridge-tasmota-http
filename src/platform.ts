@@ -17,6 +17,10 @@ import {
   TasmotaPlatformConfig,
 } from './types';
 
+import {
+  DeviceManager,
+  ManagedDevice,
+} from './device-manager';
 export const PLUGIN_NAME = 'homebridge-tasmota-local';
 export const PLATFORM_NAME = 'TasmotaHttp';
 
@@ -29,9 +33,9 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
   public readonly Characteristic: typeof Characteristic;
   public readonly log: Logging;
 
-  private discoveredDevices: DiscoveredTasmotaDevice[] = [];
   private readonly config: TasmotaPlatformConfig;
   private readonly api: API;
+  private readonly deviceManager = new DeviceManager();
 
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
   private readonly configuredAccessories = new Set<string>();
@@ -87,9 +91,12 @@ constructor(
     const devices = Array.isArray(this.config.devices)
       ? this.config.devices
       : [];
-
+    this.deviceManager.setConfiguredDevices(
+     devices,
+    );
+    
     this.log.info('────────────────────────────────────');
-    this.log.info('Homebridge Tasmota Local v0.3.0');
+    this.log.info('Homebridge Tasmota Local v0.4.0-dev');
     this.log.info(`Configured devices : ${devices.length}`);
     this.log.info('────────────────────────────────────');
 
@@ -204,30 +211,57 @@ public async runDiscovery(): Promise<void> {
        this.log,
       );
 
-     this.discoveredDevices =
-        await discovery.scanSubnet(
-         this.config.scanSubnet,
-       );
+    const devices =
+  await discovery.scanSubnet(
+    this.config.scanSubnet,
+  );
 
-     this.log.info(
-       `Discovery complete. Found ${this.discoveredDevices.length} device(s).`,
-     );
+this.deviceManager.setDiscoveredDevices(
+  devices,
+);
 
-      for (const device of this.discoveredDevices) {
+this.log.info(
+  `Discovery complete. Found ${devices.length} device(s).`,
+);
+const managed =
+  this.deviceManager.getManagedDevices();
 
-        this.log.info(
-         ` • ${device.friendlyName} (${device.ip}) [${device.suggestedType}]`,
-        );
+this.log.info('');
 
-     }
+this.log.info('Discovered devices');
 
-    }
+this.log.info('────────────────────────────────────');
 
-  public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
+for (const device of managed) {
 
-    return [...this.discoveredDevices];
+  const status =
+    device.configured
+      ? '✓ Configured'
+      : '+ Import';
 
-  }
+  this.log.info(
+    `${status.padEnd(14)} ${device.discovered.friendlyName} (${device.discovered.ip})`,
+  );
+
+}
+}
+public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
+
+  return this.deviceManager.getDiscoveredDevices();
+
+}
+
+public getImportableDevices(): DiscoveredTasmotaDevice[] {
+
+  return this.deviceManager.getImportableDevices();
+
+}
+
+public getManagedDevices(): ManagedDevice[] {
+
+  return this.deviceManager.getManagedDevices();
+
+}
 
   private getAccessoryUuid(
     device: TasmotaDeviceConfig,
