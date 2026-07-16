@@ -18,10 +18,10 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "homebridge": ">=1.8.0"
+    "homebridge": ">=2.1.1"
   },
-  "dependencies": {
-    "homebridge": "^1.8.0"
+  "peerDependencies": {
+    "homebridge": "^2.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

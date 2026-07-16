@@ -50,10 +50,8 @@ export class TasmotaLightAccessory {
 
   private setupCharacteristics(): void {
     const onCharacteristic = this.service.getCharacteristic(this.platform.Characteristic.On);
-    onCharacteristic.onSet((value, callback) => {
-      this.handlePowerChange(Boolean(value))
-        .then(() => callback())
-        .catch((error) => callback(error));
+    onCharacteristic.onSet(async (value) => {
+      await this.handlePowerChange(Boolean(value));
     });
     onCharacteristic.onGet(() => this.isOn);
 
@@ -63,10 +61,8 @@ export class TasmotaLightAccessory {
       maxValue: 100,
       minStep: 1,
     });
-    brightnessCharacteristic.onSet((value, callback) => {
-      this.handleBrightnessChange(Number(value))
-        .then(() => callback())
-        .catch((error) => callback(error));
+    brightnessCharacteristic.onSet(async (value) => {
+      await this.handleBrightnessChange(Number(value));
     });
     brightnessCharacteristic.onGet(() => this.brightness);
   }
