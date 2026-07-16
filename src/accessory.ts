@@ -130,55 +130,117 @@ export class TasmotaLightAccessory {
 
   private startPolling(): void {
     this.pollingTimer = setInterval(() => {
-      this.refreshState().catch((error) => {
-        this.platform.log.error(
-          `Unable to refresh Tasmota state for ${this.device.name}: ${error}`,
-        );
+      this.refreshState().catch(() => {
+        // refreshState() now handles online/offline transitions
       });
     }, this.pollIntervalMs);
   }
 
+  private failureCount = 0;
+  private online = true;
+
   private async refreshState(): Promise<void> {
-    const status = await this.client.getStatus11();
-    this.applyStatus(status);
+
+    try {
+
+      const status = await this.client.getStatus11();
+
+      if (!this.online) {
+        this.online = true;
+        this.failureCount = 0;
+
+        this.platform.log.info(
+          `[${this.device.name}] Device is back online.`,
+        );
+      }
+
+      this.failureCount = 0;
+
+      this.applyStatus(status);
+
+    } catch (error) {
+
+      this.failureCount++;
+
+      if (this.failureCount >= 3 && this.online) {
+
+        this.online = false;
+
+        this.platform.log.warn(
+          `[${this.device.name}] Device is offline.`,
+        );
+
+      }
+
+      throw error;
+    }
   }
 
   private applyStatus(status: TasmotaStatus11): void {
 
-    // Power
+    //
+    // POWER
+    //
+
+    let newPower = this.isOn;
+
     if (typeof status.POWER === 'boolean') {
-      this.isOn = status.POWER;
+      newPower = status.POWER;
     } else if (typeof status.POWER === 'number') {
-      this.isOn = status.POWER > 0;
+      newPower = status.POWER > 0;
     } else if (typeof status.POWER === 'string') {
+
       const normalized = status.POWER.toUpperCase();
-      this.isOn =
+
+      newPower =
         normalized === 'ON' ||
         normalized === '1' ||
         normalized === 'TRUE';
     }
 
-    this.service.updateCharacteristic(
-      this.platform.Characteristic.On,
-      this.isOn,
-    );
+    if (newPower !== this.isOn) {
 
-    // Brightness
+      this.isOn = newPower;
+
+      this.platform.log.debug(
+        `[${this.device.name}] Power -> ${this.isOn ? 'ON' : 'OFF'}`,
+      );
+
+      this.service.updateCharacteristic(
+        this.platform.Characteristic.On,
+        this.isOn,
+      );
+    }
+
+    //
+    // BRIGHTNESS
+    //
+
     const brightness =
       status.Dimmer ??
       status.DIMMER ??
       status.Brightness;
 
     if (typeof brightness === 'number') {
-      this.brightness = Math.max(
+
+      const newBrightness = Math.max(
         1,
         Math.min(100, Math.round(brightness)),
       );
 
-      this.service.updateCharacteristic(
-        this.platform.Characteristic.Brightness,
-        this.brightness,
-      );
+      if (newBrightness !== this.brightness) {
+
+        this.brightness = newBrightness;
+
+        this.platform.log.debug(
+          `[${this.device.name}] Brightness -> ${this.brightness}%`,
+        );
+
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.Brightness,
+          this.brightness,
+        );
+      }
     }
   }
 }
