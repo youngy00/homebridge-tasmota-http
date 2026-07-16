@@ -49,42 +49,10 @@ constructor(
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
 
-this.api.on('didFinishLaunching', async () => {
-
-  this.discoverDevices();
-
-  if (this.config.scanSubnet) {
-
-    this.log.info(
-      `Scanning subnet ${this.config.scanSubnet}.0/24...`,
-    );
-
-    const discovery = new TasmotaDiscovery(
-      this.log,
-    );
-
-    this.discoveredDevices =
-      await discovery.scanSubnet(
-       this.config.scanSubnet,
-     );
-
-    const devices = this.discoveredDevices;
-
-    this.log.info(
-      `Discovery complete. Found ${devices.length} device(s).`,
-    );
-
-    for (const device of devices) {
-
-      this.log.info(
-        ` • ${device.friendlyName} (${device.ip}) [${device.suggestedType}]`,
-      );
-
-    }
-
-  }
-
-});
+    this.api.on('didFinishLaunching', async () => {
+      this.discoverDevices();
+     await this.runDiscovery();
+    });
   }
 
   public configureAccessory(accessory: PlatformAccessory): void {
@@ -222,6 +190,39 @@ this.api.on('didFinishLaunching', async () => {
 
     this.log.info('Platform initialisation complete.');
   }
+
+public async runDiscovery(): Promise<void> {
+      if (!this.config.scanSubnet) {
+       return;
+     }
+
+     this.log.info(
+       `Scanning subnet ${this.config.scanSubnet}.0/24...`,
+     );
+
+      const discovery = new TasmotaDiscovery(
+       this.log,
+      );
+
+     this.discoveredDevices =
+        await discovery.scanSubnet(
+         this.config.scanSubnet,
+       );
+
+     this.log.info(
+       `Discovery complete. Found ${this.discoveredDevices.length} device(s).`,
+     );
+
+      for (const device of this.discoveredDevices) {
+
+        this.log.info(
+         ` • ${device.friendlyName} (${device.ip}) [${device.suggestedType}]`,
+        );
+
+     }
+
+    }
+
   public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
 
     return [...this.discoveredDevices];
