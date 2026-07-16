@@ -1,0 +1,30 @@
+{
+  "name": "homebridge-tasmota-http",
+  "displayName": "Homebridge Tasmota HTTP",
+  "version": "1.0.0",
+  "description": "HTTP-only Homebridge dynamic platform for Tasmota lights",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "keywords": [
+    "homebridge-plugin",
+    "tasmota",
+    "http"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "homebridge": ">=1.8.0"
+  },
+  "dependencies": {
+    "homebridge": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.8.3"
+  }
+}
