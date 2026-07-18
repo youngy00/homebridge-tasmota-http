@@ -226,11 +226,21 @@ this.onRequest('/import', async (payload) => {
     throw new Error('homebridgeConfigPath unavailable.');
   }
 
+  console.log(
+  '[Tasmota UI] homebridgeConfigPath =',
+  this.homebridgeConfigPath,
+  );
+  
   console.log('[Tasmota UI] Import requested:', body);
 
   const json = await fs.readFile(
     this.homebridgeConfigPath,
     'utf8',
+  );
+
+  console.log(
+  '[Tasmota UI] Current config length:',
+  json.length,
   );
 
   const fullConfig =
@@ -276,6 +286,18 @@ this.onRequest('/import', async (payload) => {
       JSON.stringify(fullConfig, null, 4),
       'utf8',
     );
+
+const verify = await fs.readFile(
+  this.homebridgeConfigPath,
+  'utf8',
+);
+
+console.log(
+  '[Tasmota UI] Verify config length:',
+  verify.length,
+);
+
+console.log(verify);
 
     console.log('[Tasmota UI] Config written successfully.');
 
