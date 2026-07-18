@@ -281,11 +281,42 @@ this.onRequest('/import', async (payload) => {
       'devices',
     );
 
-    await fs.writeFile(
-      this.homebridgeConfigPath,
-      JSON.stringify(fullConfig, null, 4),
-      'utf8',
+await fs.writeFile(
+  this.homebridgeConfigPath,
+  JSON.stringify(fullConfig, null, 4),
+  'utf8',
+);
+
+const stat1 = await fs.stat(this.homebridgeConfigPath);
+
+console.log(
+  '[Tasmota UI] After write:',
+  stat1.size,
+  stat1.mtime.toISOString(),
+);
+
+const configPath = this.homebridgeConfigPath;
+
+setTimeout(async () => {
+  try {
+    if (!configPath) {
+      return;
+    }
+
+    const stat2 = await fs.stat(configPath);
+    const text = await fs.readFile(configPath, 'utf8');
+
+    console.log(
+      '[Tasmota UI] After 5 seconds:',
+      stat2.size,
+      stat2.mtime.toISOString(),
     );
+
+    console.log(text);
+  } catch (err) {
+    console.error(err);
+  }
+}, 5000);
 
 const verify = await fs.readFile(
   this.homebridgeConfigPath,
