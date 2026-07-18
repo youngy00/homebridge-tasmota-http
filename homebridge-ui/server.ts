@@ -211,33 +211,51 @@ return devices;
 
     });
 
-    this.onRequest('/import', async (payload) => {
+this.onRequest('/import', async (payload) => {
 
   const body = payload as {
     host?: string;
+    name?: string;
   };
 
   if (!body.host) {
     throw new Error('No host specified.');
   }
 
-  const config = await this.getPluginConfig();
-
-  if (!config) {
-    throw new Error('Platform configuration not found.');
+  if (!this.homebridgeConfigPath) {
+    throw new Error('homebridgeConfigPath unavailable.');
   }
 
-  config.devices ??= [];
+  console.log('[Tasmota UI] Import requested:', body);
 
-  const existing = config.devices.find(
+  const json = await fs.readFile(
+    this.homebridgeConfigPath,
+    'utf8',
+  );
+
+  const fullConfig =
+    JSON.parse(json) as HomebridgeConfig;
+
+  const platform =
+    fullConfig.platforms?.find(
+      p => p.platform === 'TasmotaHttp',
+    );
+
+  if (!platform) {
+    throw new Error('Platform not found.');
+  }
+
+  platform.devices ??= [];
+
+  const existing = platform.devices.find(
     device => device.host === body.host,
   );
 
   if (!existing) {
 
-    config.devices.push({
+    platform.devices.push({
 
-      name: body.host,
+      name: body.name ?? body.host,
 
       host: body.host,
 
@@ -247,33 +265,25 @@ return devices;
 
     });
 
-    if (!this.homebridgeConfigPath) {
-      throw new Error('homebridgeConfigPath unavailable.');
-    }
-
-    const json = await fs.readFile(
-      this.homebridgeConfigPath,
-      'utf8',
+    console.log(
+      '[Tasmota UI] Writing config with',
+      platform.devices.length,
+      'devices',
     );
-
-    const fullConfig =
-      JSON.parse(json) as HomebridgeConfig;
-
-    const platform =
-      fullConfig.platforms?.find(
-        p => p.platform === 'TasmotaHttp',
-      );
-
-    if (!platform) {
-      throw new Error('Platform not found.');
-    }
-
-    platform.devices = config.devices;
 
     await fs.writeFile(
       this.homebridgeConfigPath,
       JSON.stringify(fullConfig, null, 4),
       'utf8',
+    );
+
+    console.log('[Tasmota UI] Config written successfully.');
+
+  } else {
+
+    console.log(
+      '[Tasmota UI] Device already exists:',
+      body.host,
     );
 
   }
