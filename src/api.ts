@@ -1,5 +1,6 @@
 import { TasmotaHttpPlatform } from './platform';
 import { DiscoveredTasmotaDevice } from './discovery';
+import { TasmotaDeviceConfig } from './types';
 
 export class TasmotaApi {
 
@@ -21,4 +22,11 @@ export class TasmotaApi {
 
   }
 
+public import(
+  host: string,
+): Promise<TasmotaDeviceConfig | undefined> {
+
+  return this.platform.importDevice(host);
+
+}
 }

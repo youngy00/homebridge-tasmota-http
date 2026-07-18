@@ -12,6 +12,12 @@ export interface TasmotaDeviceConfig {
   pollInterval?: number;
 }
 
+export interface DiscoveredDevice {
+  friendlyName: string;
+  ip: string;
+  type: 'light' | 'switch' | 'unknown';
+}
+
 export interface TasmotaStatus11 {
   POWER?: string | number | boolean;
 

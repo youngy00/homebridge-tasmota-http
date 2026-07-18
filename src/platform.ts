@@ -21,11 +21,16 @@ import {
   DeviceManager,
   ManagedDevice,
 } from './device-manager';
+
+import { ConfigManager } from './config-manager';
+import { DiscoveryService } from './discovery-service';
+import { UiService } from './ui-service';
+
 export const PLUGIN_NAME = 'homebridge-tasmota-local';
 export const PLATFORM_NAME = 'TasmotaHttp';
 
 
-export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
+export class TasmotaHttpPlatform implements DynamicPlatformPlugin, UiService {
 
 
   
@@ -35,7 +40,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
   private readonly config: TasmotaPlatformConfig;
   private readonly api: API;
-  private readonly deviceManager = new DeviceManager();
+  private readonly discoveryService: DiscoveryService;
 
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
   private readonly configuredAccessories = new Set<string>();
@@ -52,6 +57,10 @@ constructor(
 
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
+
+this.discoveryService = new DiscoveryService(
+  this.log,
+);
 
     this.api.on('didFinishLaunching', async () => {
       this.discoverDevices();
@@ -91,9 +100,9 @@ constructor(
     const devices = Array.isArray(this.config.devices)
       ? this.config.devices
       : [];
-    this.deviceManager.setConfiguredDevices(
-     devices,
-    );
+this.discoveryService.setConfiguredDevices(
+  devices,
+);
     
     this.log.info('────────────────────────────────────');
     this.log.info('Homebridge Tasmota Local v0.4.0-dev');
@@ -198,68 +207,81 @@ constructor(
     this.log.info('Platform initialisation complete.');
   }
 
-public async runDiscovery(): Promise<void> {
-      if (!this.config.scanSubnet) {
-       return;
-     }
+public async runDiscovery(): Promise<ManagedDevice[]> {
 
-     this.log.info(
-       `Scanning subnet ${this.config.scanSubnet}.0/24...`,
-     );
+  if (!this.config.scanSubnet) {
+    return [];
+  }
 
-      const discovery = new TasmotaDiscovery(
-       this.log,
-      );
-
-    const devices =
-  await discovery.scanSubnet(
+  const managed = await this.discoveryService.scan(
     this.config.scanSubnet,
   );
 
-this.deviceManager.setDiscoveredDevices(
-  devices,
-);
+  this.log.info(
+    `Discovery complete. Found ${managed.length} device(s).`,
+  );
 
-this.log.info(
-  `Discovery complete. Found ${devices.length} device(s).`,
-);
-const managed =
-  this.deviceManager.getManagedDevices();
+  this.log.info('');
+  this.log.info('Discovered devices');
+  this.log.info('────────────────────────────────────');
 
-this.log.info('');
+  for (const device of managed) {
 
-this.log.info('Discovered devices');
-
-this.log.info('────────────────────────────────────');
-
-for (const device of managed) {
-
-  const status =
-    device.configured
+    const status = device.configured
       ? '✓ Configured'
       : '+ Import';
 
-  this.log.info(
-    `${status.padEnd(14)} ${device.discovered.friendlyName} (${device.discovered.ip})`,
-  );
+    this.log.info(
+      `${status.padEnd(14)} ${device.discovered.friendlyName} (${device.discovered.ip})`,
+    );
+
+  }
+
+  return managed;
 
 }
+
+public async scan(): Promise<ManagedDevice[]> {
+
+  return this.runDiscovery();
+
 }
 public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
 
-  return this.deviceManager.getDiscoveredDevices();
+  return this.discoveryService.getDiscoveredDevices();
 
 }
 
 public getImportableDevices(): DiscoveredTasmotaDevice[] {
 
-  return this.deviceManager.getImportableDevices();
+  return this.discoveryService.getImportableDevices();
 
 }
 
 public getManagedDevices(): ManagedDevice[] {
 
-  return this.deviceManager.getManagedDevices();
+  return this.discoveryService.getManagedDevices();
+
+}
+
+
+public async importDevice(
+  host: string,
+): Promise<TasmotaDeviceConfig | undefined> {
+
+  return this.discoveryService.importDevice(host);
+
+}
+
+public async import(
+  host: string,
+): Promise<void> {
+
+  const device = await this.importDevice(host);
+
+  if (!device) {
+    throw new Error(`Device '${host}' was not found.`);
+  }
 
 }
 

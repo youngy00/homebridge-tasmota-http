@@ -4,7 +4,10 @@
     "module": "commonjs",
     "lib": ["ES2020"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDirs": [
+      "src",
+      "shared"
+    ],
     "declaration": true,
     "declarationMap": false,
     "sourceMap": true,
@@ -14,6 +17,12 @@
     "skipLibCheck": true,
     "moduleResolution": "node"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src/**/*.ts",
+    "shared/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }

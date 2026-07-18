@@ -1,4 +1,6 @@
 import './styles.css';
-import { App } from './App';
+import { App, initialize } from './App';
 
-document.getElementById('app')!.innerHTML = App();
+document.body.innerHTML = App();
+
+initialize();

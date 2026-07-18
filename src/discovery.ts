@@ -1,5 +1,7 @@
 import http from 'node:http';
-import { Logging } from 'homebridge';
+export interface Logger {
+  info(message: string): void;
+}
 
 export interface DiscoveredTasmotaDevice {
   ip: string;
@@ -25,10 +27,10 @@ export class TasmotaDiscovery {
 
   private readonly concurrency = 25;
 
-  constructor(
-    private readonly log: Logging,
-    private readonly timeout = 1000,
-  ) {}
+constructor(
+  private readonly log: Logger,
+  private readonly timeout = 1000,
+) {}
 
   public async discoverHost(
     ip: string,
