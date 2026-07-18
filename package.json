@@ -27,11 +27,11 @@
     "iot",
     "apple-home"
   ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p homebridge-ui/tsconfig.json",
-    "watch": "tsc -w -p tsconfig.json",
-    "prepublishOnly": "npm run build"
-  },
+"scripts": {
+  "build": "tsc -p tsconfig.json && tsc -p homebridge-ui/tsconfig.json && rm -rf dist/homebridge-ui/public && cp -R homebridge-ui/public dist/homebridge-ui/public",
+  "watch": "tsc -w -p tsconfig.json",
+  "prepublishOnly": "npm run build"
+},
   "engines": {
     "node": ">=18.0.0",
     "homebridge": ">=2.1.1"
