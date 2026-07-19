@@ -1,4 +1,4 @@
-import type { PlatformConfigBlock } from './types';
+import type { DeviceType, PlatformConfigBlock } from './types';
 
 declare global {
   interface Window {
@@ -55,8 +55,9 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
 export function importDevice(
   host: string,
   name: string,
+  type: DeviceType,
 ): Promise<'imported' | 'already-configured'> {
-  return enqueue(() => doImportDevice(host, name));
+  return enqueue(() => doImportDevice(host, name, type));
 }
 
 /** Removes a device from the TasmotaHttp platform block, same save flow as importDevice. */
@@ -67,6 +68,7 @@ export function removeDevice(host: string): Promise<'removed' | 'not-found'> {
 async function doImportDevice(
   host: string,
   name: string,
+  type: DeviceType,
 ): Promise<'imported' | 'already-configured'> {
 
   const pluginConfig = await window.homebridge.getPluginConfig();
@@ -93,6 +95,7 @@ async function doImportDevice(
     host,
     port: 80,
     pollInterval: 2,
+    type,
   });
 
   await window.homebridge.updatePluginConfig(pluginConfig);

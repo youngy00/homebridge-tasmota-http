@@ -1,5 +1,5 @@
 import { request, importDevice, removeDevice } from './api';
-import type { UiDevice } from './types';
+import type { DeviceType, UiDevice } from './types';
 
 export function App(): string {
   return `
@@ -48,38 +48,95 @@ function deviceInfo(device: UiDevice): HTMLElement {
   return info;
 }
 
+/**
+ * Light/Switch picker for an unconfigured row. Lives outside the row's
+ * <label> (see deviceRow) so clicking it doesn't also toggle the import
+ * checkbox the way clicking anywhere else in the label does.
+ */
+function typeToggle(checkbox: HTMLInputElement): HTMLElement {
+
+  const toggle = document.createElement('div');
+  toggle.className = 'type-toggle';
+
+  const options: { value: DeviceType; label: string }[] = [
+    { value: 'light', label: 'Light' },
+    { value: 'switch', label: 'Switch' },
+  ];
+
+  const buttons = options.map(({ value, label }) => {
+
+    const optionButton = document.createElement('button');
+    optionButton.type = 'button';
+    optionButton.textContent = label;
+    optionButton.dataset.value = value;
+    optionButton.setAttribute(
+      'aria-pressed',
+      String(checkbox.dataset.type === value),
+    );
+    optionButton.classList.toggle(
+      'active',
+      checkbox.dataset.type === value,
+    );
+
+    optionButton.addEventListener('click', () => {
+
+      checkbox.dataset.type = value;
+
+      toggle.querySelectorAll('button').forEach(button => {
+        const isActive = button === optionButton;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+      });
+    });
+
+    return optionButton;
+  });
+
+  buttons.forEach(button => toggle.appendChild(button));
+
+  return toggle;
+}
+
 function deviceRow(device: UiDevice): HTMLElement {
+
+  const row = document.createElement('div');
+  row.className = 'device';
 
   if (device.configured) {
 
-    const row = document.createElement('div');
-    row.className = 'device configured-row';
+    row.classList.add('configured-row');
     row.appendChild(deviceInfo(device));
 
-    const removeButton = document.createElement('button');
-    removeButton.className = 'removeButton';
-    removeButton.textContent = 'Remove';
-    removeButton.dataset.host = device.host;
-    removeButton.dataset.name = device.name;
+    const removeToggle = document.createElement('button');
+    removeToggle.className = 'removeToggle';
+    removeToggle.textContent = 'Remove';
+    removeToggle.dataset.host = device.host;
+    removeToggle.dataset.name = device.name;
 
-    row.appendChild(removeButton);
+    row.appendChild(removeToggle);
 
     return row;
   }
 
-  // Unconfigured rows are a <label> so tapping anywhere on the card toggles
-  // the checkbox, not just the small checkbox hitbox itself.
-  const row = document.createElement('label');
-  row.className = 'device selectable';
+  row.classList.add('unconfigured-row');
+
+  // The checkbox + info live in their own <label> so clicking the name/IP
+  // toggles the checkbox; the type toggle sits outside it (see typeToggle).
+  const selectLabel = document.createElement('label');
+  selectLabel.className = 'device-select';
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'importCheckbox';
   checkbox.dataset.host = device.host;
   checkbox.dataset.name = device.name;
+  checkbox.dataset.type = device.suggestedType;
 
-  row.appendChild(checkbox);
-  row.appendChild(deviceInfo(device));
+  selectLabel.appendChild(checkbox);
+  selectLabel.appendChild(deviceInfo(device));
+
+  row.appendChild(selectLabel);
+  row.appendChild(typeToggle(checkbox));
 
   return row;
 }
@@ -103,16 +160,25 @@ function buildControls(unconfiguredCount: number): HTMLElement {
   selectAllWrapper.appendChild(selectAll);
   selectAllWrapper.appendChild(selectAllText);
 
-  const importButton = document.createElement('button');
-  importButton.id = 'importSelectedButton';
-  importButton.className = 'primary';
-  importButton.textContent = 'Import Selected (0)';
-  importButton.disabled = true;
-
   controls.appendChild(selectAllWrapper);
-  controls.appendChild(importButton);
 
   return controls;
+}
+
+function buildApplyBar(): HTMLElement {
+
+  const bar = document.createElement('div');
+  bar.className = 'apply-bar';
+
+  const applyButton = document.createElement('button');
+  applyButton.id = 'applyChangesButton';
+  applyButton.className = 'primary';
+  applyButton.textContent = 'Apply Changes';
+  applyButton.disabled = true;
+
+  bar.appendChild(applyButton);
+
+  return bar;
 }
 
 function importCheckboxes(results: HTMLElement): HTMLInputElement[] {
@@ -121,18 +187,17 @@ function importCheckboxes(results: HTMLElement): HTMLInputElement[] {
   );
 }
 
+function markedForRemoval(results: HTMLElement): HTMLButtonElement[] {
+  return Array.from(
+    results.querySelectorAll<HTMLButtonElement>('.removeToggle.marked'),
+  );
+}
+
 function updateControls(results: HTMLElement): void {
 
   const checkboxes = importCheckboxes(results);
   const checked = checkboxes.filter(checkbox => checkbox.checked);
-
-  const importButton =
-    results.querySelector<HTMLButtonElement>('#importSelectedButton');
-
-  if (importButton) {
-    importButton.textContent = `Import Selected (${checked.length})`;
-    importButton.disabled = checked.length === 0;
-  }
+  const removals = markedForRemoval(results);
 
   const selectAll =
     results.querySelector<HTMLInputElement>('#selectAllCheckbox');
@@ -143,44 +208,107 @@ function updateControls(results: HTMLElement): void {
     selectAll.indeterminate =
       checked.length > 0 && checked.length < checkboxes.length;
   }
+
+  const applyButton =
+    results.querySelector<HTMLButtonElement>('#applyChangesButton');
+
+  if (!applyButton) {
+    return;
+  }
+
+  const parts: string[] = [];
+
+  if (checked.length > 0) {
+    parts.push(`import ${checked.length}`);
+  }
+
+  if (removals.length > 0) {
+    parts.push(`remove ${removals.length}`);
+  }
+
+  applyButton.textContent =
+    parts.length > 0 ? `Apply Changes (${parts.join(', ')})` : 'Apply Changes';
+
+  applyButton.disabled = parts.length === 0;
 }
 
-async function importSelected(results: HTMLElement): Promise<void> {
+function toggleRemoveMark(button: HTMLButtonElement, results: HTMLElement): void {
 
-  const importButton =
-    results.querySelector<HTMLButtonElement>('#importSelectedButton');
+  const marked = button.classList.toggle('marked');
+  button.textContent = marked ? 'Undo' : 'Remove';
+
+  const statusEl = button
+    .closest('.device')
+    ?.querySelector<HTMLElement>('.status');
+
+  if (statusEl) {
+    if (marked) {
+      statusEl.dataset.previousText = statusEl.textContent ?? '';
+      statusEl.className = 'status marked-removal';
+      statusEl.textContent = 'Marked for removal';
+    } else {
+      statusEl.className = 'status configured';
+      statusEl.textContent = statusEl.dataset.previousText ?? '✓ Configured';
+    }
+  }
+
+  updateControls(results);
+}
+
+async function applyChanges(results: HTMLElement): Promise<void> {
+
+  const applyButton =
+    results.querySelector<HTMLButtonElement>('#applyChangesButton');
 
   const checkboxes = importCheckboxes(results).filter(
     checkbox => checkbox.checked,
   );
 
-  if (!importButton || checkboxes.length === 0) {
+  const removals = markedForRemoval(results);
+
+  if (!applyButton || (checkboxes.length === 0 && removals.length === 0)) {
     return;
+  }
+
+  if (removals.length > 0) {
+
+    const names = removals.map(button => button.dataset.name).join('\n');
+
+    const confirmed = window.confirm(
+      `Remove ${removals.length} device(s)?\n\n${names}\n\n` +
+      'They will disappear from HomeKit after the next Homebridge restart.',
+    );
+
+    if (!confirmed) {
+      return;
+    }
   }
 
   const selectAll =
     results.querySelector<HTMLInputElement>('#selectAllCheckbox');
 
-  importButton.disabled = true;
+  applyButton.disabled = true;
 
   if (selectAll) {
     selectAll.disabled = true;
   }
 
+  const total = checkboxes.length + removals.length;
   let done = 0;
 
   for (const checkbox of checkboxes) {
 
     const host = checkbox.dataset.host ?? '';
     const name = checkbox.dataset.name ?? '';
+    const type = (checkbox.dataset.type as DeviceType | undefined) ?? 'light';
     const row = checkbox.closest('.device');
     const statusEl = row?.querySelector<HTMLElement>('.status');
 
-    importButton.textContent = `Importing ${done}/${checkboxes.length}...`;
+    applyButton.textContent = `Applying ${done}/${total}...`;
 
     try {
 
-      const result = await importDevice(host, name);
+      const result = await importDevice(host, name, type);
 
       if (statusEl) {
         statusEl.className = 'status configured';
@@ -188,10 +316,11 @@ async function importSelected(results: HTMLElement): Promise<void> {
           result === 'imported' ? '✓ Imported' : '✓ Already configured';
       }
 
-      row?.classList.remove('selectable');
+      row?.classList.remove('unconfigured-row');
       checkbox.checked = false;
       checkbox.disabled = true;
       checkbox.hidden = true;
+      row?.querySelector('.type-toggle')?.remove();
 
     } catch (error) {
 
@@ -207,56 +336,41 @@ async function importSelected(results: HTMLElement): Promise<void> {
     }
   }
 
+  for (const removeToggle of removals) {
+
+    const host = removeToggle.dataset.host ?? '';
+    const name = removeToggle.dataset.name ?? '';
+    const row = removeToggle.closest('.device');
+
+    applyButton.textContent = `Applying ${done}/${total}...`;
+
+    try {
+
+      await removeDevice(host);
+
+      row?.replaceWith(
+        deviceRow({ name, host, configured: false, suggestedType: 'light' }),
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      window.homebridge?.toast?.error(
+        error instanceof Error ? error.message : String(error),
+        `Remove failed: ${name}`,
+      );
+
+    } finally {
+      done++;
+    }
+  }
+
   if (selectAll) {
     selectAll.disabled = importCheckboxes(results).length === 0;
   }
 
   updateControls(results);
-}
-
-async function handleRemove(
-  button: HTMLButtonElement,
-  results: HTMLElement,
-): Promise<void> {
-
-  const host = button.dataset.host ?? '';
-  const name = button.dataset.name ?? '';
-
-  const confirmed = window.confirm(
-    `Remove ${name} (${host})? It will disappear from HomeKit after the next Homebridge restart.`,
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = 'Removing...';
-
-  try {
-
-    await removeDevice(host);
-
-    const row = button.closest('.device');
-
-    row?.replaceWith(
-      deviceRow({ name, host, configured: false }),
-    );
-
-    updateControls(results);
-
-  } catch (error) {
-
-    console.error(error);
-
-    button.disabled = false;
-    button.textContent = 'Remove';
-
-    window.homebridge?.toast?.error(
-      error instanceof Error ? error.message : String(error),
-      `Remove failed: ${name}`,
-    );
-  }
 }
 
 export function initialize(): void {
@@ -289,13 +403,13 @@ export function initialize(): void {
 
     const target = event.target as HTMLElement;
 
-    if (target.id === 'importSelectedButton') {
-      importSelected(results);
+    if (target.id === 'applyChangesButton') {
+      applyChanges(results);
       return;
     }
 
-    if (target.classList.contains('removeButton')) {
-      handleRemove(target as HTMLButtonElement, results);
+    if (target.classList.contains('removeToggle')) {
+      toggleRemoveMark(target as HTMLButtonElement, results);
     }
   });
 
@@ -327,6 +441,7 @@ export function initialize(): void {
       results.replaceChildren(
         buildControls(unconfiguredCount),
         list,
+        buildApplyBar(),
       );
 
     } catch (error) {

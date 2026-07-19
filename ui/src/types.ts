@@ -1,7 +1,10 @@
+export type DeviceType = 'light' | 'switch';
+
 export interface UiDevice {
   name: string;
   host: string;
   configured: boolean;
+  suggestedType: DeviceType;
 }
 
 export interface PluginDevice {
@@ -9,6 +12,7 @@ export interface PluginDevice {
   host: string;
   port: number;
   pollInterval: number;
+  type?: DeviceType;
 }
 
 export interface PlatformConfigBlock {

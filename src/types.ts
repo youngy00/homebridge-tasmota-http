@@ -10,12 +10,8 @@ export interface TasmotaDeviceConfig {
   host: string;
   port?: number;
   pollInterval?: number;
-}
-
-export interface DiscoveredDevice {
-  friendlyName: string;
-  ip: string;
-  type: 'light' | 'switch' | 'unknown';
+  /** Defaults to 'light' for devices imported before this field existed. */
+  type?: 'light' | 'switch';
 }
 
 export interface TasmotaStatus11 {

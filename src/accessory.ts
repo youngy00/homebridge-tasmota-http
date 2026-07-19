@@ -10,12 +10,15 @@ export class TasmotaLightAccessory {
   private pollingTimer?: NodeJS.Timeout;
   private isOn = false;
   private brightness = 100;
+  private readonly isDimmable: boolean;
 
   constructor(
     private readonly platform: TasmotaHttpPlatform,
     private readonly accessory: PlatformAccessory,
     private device: TasmotaDeviceConfig,
   ) {
+    this.isDimmable = device.type !== 'switch';
+
     this.client = new TasmotaClient(device, platform.log);
 
     // Default poll interval = 2 seconds
@@ -74,17 +77,24 @@ export class TasmotaLightAccessory {
 
     informationService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Tasmota')
-      .setCharacteristic(this.platform.Characteristic.Model, 'HTTP Light')
+      .setCharacteristic(
+        this.platform.Characteristic.Model,
+        this.isDimmable ? 'HTTP Light' : 'HTTP Switch',
+      )
       .setCharacteristic(
         this.platform.Characteristic.SerialNumber,
         `${this.device.host}:${this.device.port ?? 80}`,
       );
 
-    let service = this.accessory.getService(this.platform.Service.Lightbulb);
+    const serviceType = this.isDimmable
+      ? this.platform.Service.Lightbulb
+      : this.platform.Service.Switch;
+
+    let service = this.accessory.getService(serviceType);
 
     if (!service) {
       service = this.accessory.addService(
-        this.platform.Service.Lightbulb,
+        serviceType,
         this.device.name,
         this.device.name,
       );
@@ -108,6 +118,10 @@ export class TasmotaLightAccessory {
     });
 
     onCharacteristic.onGet(() => this.isOn);
+
+    if (!this.isDimmable) {
+      return;
+    }
 
     const brightnessCharacteristic = this.service.getCharacteristic(
       this.platform.Characteristic.Brightness,
@@ -243,6 +257,10 @@ export class TasmotaLightAccessory {
     //
     // BRIGHTNESS
     //
+
+    if (!this.isDimmable) {
+      return;
+    }
 
     const brightness =
       status.Dimmer ??

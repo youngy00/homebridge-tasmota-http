@@ -8,6 +8,7 @@ interface PluginDevice {
   host: string;
   port: number;
   pollInterval: number;
+  type?: 'light' | 'switch';
 }
 
 interface PluginConfig {
@@ -24,6 +25,21 @@ interface UiDevice {
   name: string;
   host: string;
   configured: boolean;
+  suggestedType: 'light' | 'switch';
+}
+
+/**
+ * The plugin only implements HomeKit Light and Switch services today (see
+ * src/accessory.ts), so discovery's finer-grained suggestedType (which can
+ * also say 'outlet', 'fan', or 'unknown') collapses to 'switch' for anything
+ * that isn't clearly a dimmable/color light - a relay-style default, not a
+ * claim that the device really is a switch. The UI lets the user override
+ * this per device before importing.
+ */
+function toSupportedType(
+  suggestedType: 'light' | 'switch' | 'outlet' | 'fan' | 'unknown',
+): 'light' | 'switch' {
+  return suggestedType === 'light' ? 'light' : 'switch';
 }
 
 /**
@@ -88,6 +104,7 @@ class TasmotaUiServer extends HomebridgePluginUiServer {
         name: device.friendlyName,
         host: device.ip,
         configured: configuredHosts.has(device.ip),
+        suggestedType: toSupportedType(device.suggestedType),
       }));
 
       return devices;

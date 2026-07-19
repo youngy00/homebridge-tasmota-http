@@ -35,6 +35,12 @@
             "pollInterval": {
               "type": "integer",
               "default": 2
+            },
+            "type": {
+              "title": "Device Type",
+              "type": "string",
+              "enum": ["light", "switch"],
+              "default": "light"
             }
           },
           "required": [
