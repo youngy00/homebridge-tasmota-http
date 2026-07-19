@@ -1,0 +1,103 @@
+diff --git a/src/accessory.ts b/src/accessory.ts
+index 9f6a731..7b0ebe3 100644
+--- a/src/accessory.ts
++++ b/src/accessory.ts
+@@ -5,8 +5,8 @@ import { TasmotaDeviceConfig, TasmotaStatus11 } from './types';
+ 
+ export class TasmotaLightAccessory {
+   private readonly service: Service;
+-  private readonly client: TasmotaClient;
+-  private readonly pollIntervalMs: number;
++  private client: TasmotaClient;
++  private pollIntervalMs: number;
+   private pollingTimer?: NodeJS.Timeout;
+   private isOn = false;
+   private brightness = 100;
+@@ -14,7 +14,7 @@ export class TasmotaLightAccessory {
+   constructor(
+     private readonly platform: TasmotaHttpPlatform,
+     private readonly accessory: PlatformAccessory,
+-    private readonly device: TasmotaDeviceConfig,
++    private device: TasmotaDeviceConfig,
+   ) {
+     this.client = new TasmotaClient(device, platform.log);
+ 
+@@ -39,6 +39,34 @@ export class TasmotaLightAccessory {
+     this.platform.log.info(`Identify requested for ${this.device.name}`);
+   }
+ 
++  /**
++   * Applies a config reload for a device that mapped to the same accessory
++   * UUID as before (name/host/port unchanged, since those make up the UUID
++   * itself). Only pollInterval can realistically differ here, so this just
++   * rebuilds the client/poll timer against the new device config.
++   */
++  public updateDevice(device: TasmotaDeviceConfig): void {
++
++    this.device = device;
++    this.client = new TasmotaClient(device, this.platform.log);
++    this.pollIntervalMs = Math.max(1, device.pollInterval ?? 2) * 1000;
++
++    if (this.pollingTimer) {
++      clearInterval(this.pollingTimer);
++    }
++
++    this.startPolling();
++  }
++
++  /** Stops background polling. Must be called when this accessory becomes stale. */
++  public stop(): void {
++
++    if (this.pollingTimer) {
++      clearInterval(this.pollingTimer);
++      this.pollingTimer = undefined;
++    }
++  }
++
+   private createService(): Service {
+     const informationService =
+       this.accessory.getService(this.platform.Service.AccessoryInformation) ??
+diff --git a/src/platform.ts b/src/platform.ts
+index 8e59c09..ee2487b 100644
+--- a/src/platform.ts
++++ b/src/platform.ts
+@@ -32,6 +32,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
+ 
+   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
+   private readonly configuredAccessories = new Set<string>();
++  private readonly accessoryHandlers = new Map<string, TasmotaLightAccessory>();
+ 
+   constructor(
+     log: Logging,
+@@ -74,11 +75,13 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
+ 
+     this.configuredAccessories.add(accessory.UUID);
+ 
+-    new TasmotaLightAccessory(
++    const handler = new TasmotaLightAccessory(
+       this,
+       accessory,
+       device,
+     );
++
++    this.accessoryHandlers.set(accessory.UUID, handler);
+   }
+ 
+   private discoverDevices(): void {
+@@ -143,6 +146,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
+       } else {
+ 
+         accessory.context.device = device;
++        this.accessoryHandlers.get(uuid)?.updateDevice(device);
+ 
+         this.log.debug(
+           `Using cached accessory '${device.name}'`,
+@@ -181,6 +185,8 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
+       );
+ 
+       for (const accessory of staleAccessories) {
++        this.accessoryHandlers.get(accessory.UUID)?.stop();
++        this.accessoryHandlers.delete(accessory.UUID);
+         this.cachedAccessories.delete(accessory.UUID);
+         this.configuredAccessories.delete(accessory.UUID);
+       }
