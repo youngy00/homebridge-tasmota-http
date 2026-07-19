@@ -12,14 +12,14 @@ export function App(): string {
         <input
           id="scanSubnetInput"
           type="text"
-          placeholder="10.0.1"
+          placeholder="10.0.1.0/24"
           autocomplete="off"
         />
         <button id="saveSubnetButton">Save</button>
       </div>
       <p class="subnet-hint">
-        First three octets only, e.g. <strong>10.0.1</strong> for the
-        10.0.1.0/24 network — scans 10.0.1.1 through 10.0.1.254.
+        The /24 network to scan, e.g. <strong>10.0.1.0/24</strong> —
+        scans 10.0.1.1 through 10.0.1.254.
       </p>
 
       <button id="scanButton">
@@ -472,6 +472,28 @@ async function applyChanges(results: HTMLElement): Promise<void> {
   updateControls(results);
 }
 
+const BARE_SUBNET = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const CIDR_SUBNET = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.0\/24$/;
+
+/** Upgrades the older bare "10.0.1" display/storage form to "10.0.1.0/24". */
+function toCidrForm(subnet: string): string {
+
+  const match = subnet.trim().match(BARE_SUBNET);
+
+  return match ? `${subnet.trim()}.0/24` : subnet.trim();
+}
+
+/** Validates octets are in range; accepts either bare or CIDR form. */
+function isValidSubnet(subnet: string): boolean {
+
+  const match = subnet.match(BARE_SUBNET) ?? subnet.match(CIDR_SUBNET);
+
+  return (
+    match !== null &&
+    [match[1], match[2], match[3]].every(octet => Number(octet) <= 255)
+  );
+}
+
 async function loadScanSubnet(input: HTMLInputElement): Promise<void> {
 
   try {
@@ -479,7 +501,7 @@ async function loadScanSubnet(input: HTMLInputElement): Promise<void> {
     const config = await request<{ scanSubnet: string | null }>('/config');
 
     if (config.scanSubnet) {
-      input.value = config.scanSubnet;
+      input.value = toCidrForm(config.scanSubnet);
     }
 
   } catch (error) {
@@ -492,16 +514,17 @@ async function handleSaveSubnet(
   saveButton: HTMLButtonElement,
 ): Promise<void> {
 
-  const subnet = input.value.trim();
+  const subnet = toCidrForm(input.value);
 
-  if (!subnet) {
+  if (!subnet || !isValidSubnet(subnet)) {
     window.homebridge?.toast?.error(
-      'Enter a subnet first, e.g. 10.0.1',
+      'Enter a /24 subnet, e.g. 10.0.1.0/24',
       'Scan subnet',
     );
     return;
   }
 
+  input.value = subnet;
   saveButton.disabled = true;
   saveButton.textContent = 'Saving...';
 
@@ -510,7 +533,7 @@ async function handleSaveSubnet(
     await saveScanSubnet(subnet);
 
     window.homebridge?.toast?.success(
-      `Saved. Devices will be scanned on ${subnet}.0/24.`,
+      `Saved. Devices will be scanned on ${subnet}.`,
       'Scan subnet',
     );
 

@@ -12,8 +12,8 @@
       "scanSubnet": {
         "title": "Scan Subnet",
         "type": "string",
-        "placeholder": "10.0.1",
-        "description": "Developer option to scan the subnet for Tasmota devices."
+        "placeholder": "10.0.1.0/24",
+        "description": "The /24 network to scan for Tasmota devices, e.g. 10.0.1.0/24."
       },
       "devices": {
         "type": "array",

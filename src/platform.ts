@@ -207,9 +207,22 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
       return [];
     }
 
-    const managed = await this.discoveryService.scan(
-      this.config.scanSubnet,
-    );
+    let managed: ManagedDevice[];
+
+    try {
+
+      managed = await this.discoveryService.scan(
+        this.config.scanSubnet,
+      );
+
+    } catch (error) {
+
+      this.log.warn(
+        `Skipping startup discovery: ${error instanceof Error ? error.message : error}`,
+      );
+
+      return [];
+    }
 
     this.log.info(
       `Discovery complete. Found ${managed.length} device(s).`,

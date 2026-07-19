@@ -26,7 +26,7 @@ export class DiscoveryService {
 
   public async scan(subnet: string): Promise<ManagedDevice[]> {
 
-    this.log.info(`Scanning subnet ${subnet}.0/24...`);
+    this.log.info(`Scanning subnet ${subnet}...`);
 
     const devices = await this.discovery.scanSubnet(subnet);
 

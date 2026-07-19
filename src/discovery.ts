@@ -23,6 +23,28 @@ export interface DiscoveredTasmotaDevice {
     | 'unknown';
 }
 
+/**
+ * Accepts the standard "10.0.1.0/24" form, and the legacy bare "10.0.1"
+ * form still found in configs saved before that was the display format,
+ * and returns the /24 prefix ("10.0.1") IPs get built from.
+ */
+export function parseSubnetPrefix(subnet: string): string {
+
+  const trimmed = subnet.trim();
+
+  const match = trimmed.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\.0\/24)?$/,
+  );
+
+  if (!match || [match[1], match[2], match[3]].some(octet => Number(octet) > 255)) {
+    throw new Error(
+      `Invalid scan subnet "${subnet}". Expected a /24 network like 10.0.1.0/24.`,
+    );
+  }
+
+  return `${match[1]}.${match[2]}.${match[3]}`;
+}
+
 export class TasmotaDiscovery {
 
   private readonly concurrency = 25;
@@ -102,6 +124,8 @@ constructor(
   subnet: string,
 ): Promise<DiscoveredTasmotaDevice[]> {
 
+  const prefix = parseSubnetPrefix(subnet);
+
   const results: DiscoveredTasmotaDevice[] = [];
 
   let currentIp = 1;
@@ -112,7 +136,7 @@ constructor(
 
       const host = currentIp++;
 
-      const ip = `${subnet}.${host}`;
+      const ip = `${prefix}.${host}`;
 
       const device = await this.discoverHost(ip);
 
