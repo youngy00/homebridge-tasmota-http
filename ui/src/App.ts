@@ -1,4 +1,4 @@
-import { request, importDevice, removeDevice } from './api';
+import { request, importDevice, removeDevice, saveScanSubnet } from './api';
 import type { DeviceType, UiDevice } from './types';
 
 export function App(): string {
@@ -6,6 +6,17 @@ export function App(): string {
     <div class="container">
 
       <h1>Homebridge Tasmota Local</h1>
+
+      <div class="subnet-row">
+        <label for="scanSubnetInput">Scan Subnet</label>
+        <input
+          id="scanSubnetInput"
+          type="text"
+          placeholder="10.0.1"
+          autocomplete="off"
+        />
+        <button id="saveSubnetButton">Save</button>
+      </div>
 
       <button id="scanButton">
         Scan Network
@@ -457,10 +468,81 @@ async function applyChanges(results: HTMLElement): Promise<void> {
   updateControls(results);
 }
 
+async function loadScanSubnet(input: HTMLInputElement): Promise<void> {
+
+  try {
+
+    const config = await request<{ scanSubnet: string | null }>('/config');
+
+    if (config.scanSubnet) {
+      input.value = config.scanSubnet;
+    }
+
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function handleSaveSubnet(
+  input: HTMLInputElement,
+  saveButton: HTMLButtonElement,
+): Promise<void> {
+
+  const subnet = input.value.trim();
+
+  if (!subnet) {
+    window.homebridge?.toast?.error(
+      'Enter a subnet first, e.g. 10.0.1',
+      'Scan subnet',
+    );
+    return;
+  }
+
+  saveButton.disabled = true;
+  saveButton.textContent = 'Saving...';
+
+  try {
+
+    await saveScanSubnet(subnet);
+
+    window.homebridge?.toast?.success(
+      `Saved. Devices will be scanned on ${subnet}.0/24.`,
+      'Scan subnet',
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    window.homebridge?.toast?.error(
+      error instanceof Error ? error.message : String(error),
+      'Failed to save scan subnet',
+    );
+
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = 'Save';
+  }
+}
+
 export function initialize(): void {
 
   const button = document.getElementById('scanButton') as HTMLButtonElement;
   const results = document.getElementById('results') as HTMLDivElement;
+  const subnetInput = document.getElementById('scanSubnetInput') as HTMLInputElement;
+  const saveSubnetButton = document.getElementById('saveSubnetButton') as HTMLButtonElement;
+
+  loadScanSubnet(subnetInput);
+
+  saveSubnetButton.addEventListener('click', () => {
+    handleSaveSubnet(subnetInput, saveSubnetButton);
+  });
+
+  subnetInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      handleSaveSubnet(subnetInput, saveSubnetButton);
+    }
+  });
 
   results.addEventListener('change', (event) => {
 
@@ -531,7 +613,13 @@ export function initialize(): void {
     } catch (error) {
 
       console.error(error);
-      results.innerHTML = '<p class="empty">Scan failed.</p>';
+
+      const message = error instanceof Error ? error.message : String(error);
+      const errorText = document.createElement('p');
+      errorText.className = 'empty';
+      errorText.textContent = `Scan failed: ${message}`;
+
+      results.replaceChildren(errorText);
     }
   });
 }

@@ -65,6 +65,11 @@ export function removeDevice(host: string): Promise<'removed' | 'not-found'> {
   return enqueue(() => doRemoveDevice(host));
 }
 
+/** Persists the subnet to scan, same save flow as importDevice. */
+export function saveScanSubnet(subnet: string): Promise<void> {
+  return enqueue(() => doSaveScanSubnet(subnet));
+}
+
 async function doImportDevice(
   host: string,
   name: string,
@@ -128,4 +133,23 @@ async function doRemoveDevice(
   await window.homebridge.savePluginConfig();
 
   return 'removed';
+}
+
+async function doSaveScanSubnet(subnet: string): Promise<void> {
+
+  const pluginConfig = await window.homebridge.getPluginConfig();
+
+  let platform = pluginConfig.find(
+    block => block.platform === PLATFORM_NAME,
+  );
+
+  if (!platform) {
+    platform = { platform: PLATFORM_NAME, devices: [] };
+    pluginConfig.push(platform);
+  }
+
+  platform.scanSubnet = subnet;
+
+  await window.homebridge.updatePluginConfig(pluginConfig);
+  await window.homebridge.savePluginConfig();
 }

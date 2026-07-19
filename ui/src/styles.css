@@ -62,6 +62,31 @@ button:not(:disabled):hover {
     background: var(--surface-hover);
 }
 
+input[type="text"] {
+    font-size: 14px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+}
+
+.subnet-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.subnet-row label {
+    font-size: 13px;
+    color: var(--fg-muted);
+}
+
+.subnet-row input[type="text"] {
+    width: 110px;
+}
+
 button:disabled {
     opacity: 0.5;
     cursor: default;
