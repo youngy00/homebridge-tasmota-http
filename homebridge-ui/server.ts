@@ -74,9 +74,9 @@ class TasmotaUiServer extends HomebridgePluginUiServer {
         );
       }
 
-      const discovery = new TasmotaDiscovery({
-        info: (message) => console.log(message),
-      });
+      // The browser already renders each discovered device, so this scan
+      // doesn't need to also echo every device into the Homebridge log.
+      const discovery = new TasmotaDiscovery({ info: () => {} });
 
       const discovered = await discovery.scanSubnet(config.scanSubnet);
 

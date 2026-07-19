@@ -121,8 +121,19 @@ async function importSelected(results: HTMLElement): Promise<void> {
   );
 
   if (!importButton || checkboxes.length === 0) {
+
+    window.homebridge?.toast?.success(
+      `Import Selected clicked but ${checkboxes.length} device(s) were checked.`,
+      'Debug: click received',
+    );
+
     return;
   }
+
+  window.homebridge?.toast?.success(
+    `Import Selected clicked with ${checkboxes.length} device(s) checked.`,
+    'Debug: click received',
+  );
 
   const selectAll =
     results.querySelector<HTMLInputElement>('#selectAllCheckbox');

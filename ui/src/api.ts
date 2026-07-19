@@ -58,10 +58,22 @@ async function doImportDevice(
   name: string,
 ): Promise<'imported' | 'already-configured'> {
 
+  window.homebridge?.toast?.success(
+    `Fetching current config for ${name}...`,
+    'Debug: import starting',
+  );
+
   const pluginConfig = await window.homebridge.getPluginConfig();
 
   let platform = pluginConfig.find(
     block => block.platform === PLATFORM_NAME,
+  );
+
+  window.homebridge?.toast?.success(
+    platform
+      ? `Found TasmotaHttp block with ${platform.devices?.length ?? 0} device(s).`
+      : 'No TasmotaHttp block found in config - creating one.',
+    'Debug: config read',
   );
 
   if (!platform) {
@@ -74,6 +86,12 @@ async function doImportDevice(
   const existing = platform.devices.find(device => device.host === host);
 
   if (existing) {
+
+    window.homebridge?.toast?.success(
+      `${host} is already in the config - skipping.`,
+      'Debug: already configured',
+    );
+
     return 'already-configured';
   }
 
@@ -84,8 +102,18 @@ async function doImportDevice(
     pollInterval: 2,
   });
 
+  window.homebridge?.toast?.success(
+    `Saving ${platform.devices.length} device(s), including ${name} (${host}).`,
+    'Debug: about to save',
+  );
+
   await window.homebridge.updatePluginConfig(pluginConfig);
   await window.homebridge.savePluginConfig();
+
+  window.homebridge?.toast?.success(
+    `Save call for ${name} completed.`,
+    'Debug: saved',
+  );
 
   return 'imported';
 }
