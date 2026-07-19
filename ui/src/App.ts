@@ -1,4 +1,4 @@
-import { request, importDevice } from './api';
+import { request, importDevice, removeDevice } from './api';
 import type { UiDevice } from './types';
 
 export function App(): string {
@@ -53,8 +53,16 @@ function deviceRow(device: UiDevice): HTMLElement {
   if (device.configured) {
 
     const row = document.createElement('div');
-    row.className = 'device';
+    row.className = 'device configured-row';
     row.appendChild(deviceInfo(device));
+
+    const removeButton = document.createElement('button');
+    removeButton.className = 'removeButton';
+    removeButton.textContent = 'Remove';
+    removeButton.dataset.host = device.host;
+    removeButton.dataset.name = device.name;
+
+    row.appendChild(removeButton);
 
     return row;
   }
@@ -147,19 +155,8 @@ async function importSelected(results: HTMLElement): Promise<void> {
   );
 
   if (!importButton || checkboxes.length === 0) {
-
-    window.homebridge?.toast?.success(
-      `Import Selected clicked but ${checkboxes.length} device(s) were checked.`,
-      'Debug: click received',
-    );
-
     return;
   }
-
-  window.homebridge?.toast?.success(
-    `Import Selected clicked with ${checkboxes.length} device(s) checked.`,
-    'Debug: click received',
-  );
 
   const selectAll =
     results.querySelector<HTMLInputElement>('#selectAllCheckbox');
@@ -217,6 +214,51 @@ async function importSelected(results: HTMLElement): Promise<void> {
   updateControls(results);
 }
 
+async function handleRemove(
+  button: HTMLButtonElement,
+  results: HTMLElement,
+): Promise<void> {
+
+  const host = button.dataset.host ?? '';
+  const name = button.dataset.name ?? '';
+
+  const confirmed = window.confirm(
+    `Remove ${name} (${host})? It will disappear from HomeKit after the next Homebridge restart.`,
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = 'Removing...';
+
+  try {
+
+    await removeDevice(host);
+
+    const row = button.closest('.device');
+
+    row?.replaceWith(
+      deviceRow({ name, host, configured: false }),
+    );
+
+    updateControls(results);
+
+  } catch (error) {
+
+    console.error(error);
+
+    button.disabled = false;
+    button.textContent = 'Remove';
+
+    window.homebridge?.toast?.error(
+      error instanceof Error ? error.message : String(error),
+      `Remove failed: ${name}`,
+    );
+  }
+}
+
 export function initialize(): void {
 
   const button = document.getElementById('scanButton') as HTMLButtonElement;
@@ -249,6 +291,11 @@ export function initialize(): void {
 
     if (target.id === 'importSelectedButton') {
       importSelected(results);
+      return;
+    }
+
+    if (target.classList.contains('removeButton')) {
+      handleRemove(target as HTMLButtonElement, results);
     }
   });
 

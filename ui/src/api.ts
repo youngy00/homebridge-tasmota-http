@@ -24,28 +24,20 @@ export function request<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /**
- * Adds (or updates) a device in the TasmotaHttp platform block and persists
- * it via the official Homebridge UI config SDK. This goes through the same
- * getPluginConfig -> updatePluginConfig -> savePluginConfig flow the main
- * "Settings" form uses, so it can't race with, or clobber, a save the user
- * makes elsewhere in the UI at the same time.
- *
- * Calls are chained onto `importQueue` so that importing several devices in
- * quick succession (clicking multiple "Import" buttons before the first
- * save lands) can't race: each import only reads the config once the
- * previous import has fully saved, instead of reading a stale snapshot and
- * overwriting the previous import's change when it saves.
+ * Both importDevice and removeDevice do a getPluginConfig -> mutate ->
+ * updatePluginConfig -> savePluginConfig round trip. Every call - import or
+ * remove - is chained onto this single queue so an import and a remove (or
+ * two of either) triggered close together can't race: each one only reads
+ * the config once the previous mutation has fully saved, instead of reading
+ * a stale snapshot and clobbering the previous change when it saves.
  */
-let importQueue: Promise<void> = Promise.resolve();
+let configQueue: Promise<void> = Promise.resolve();
 
-export function importDevice(
-  host: string,
-  name: string,
-): Promise<'imported' | 'already-configured'> {
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
 
-  const result = importQueue.then(() => doImportDevice(host, name));
+  const result = configQueue.then(task);
 
-  importQueue = result.then(
+  configQueue = result.then(
     () => undefined,
     () => undefined,
   );
@@ -53,27 +45,34 @@ export function importDevice(
   return result;
 }
 
+/**
+ * Adds a device to the TasmotaHttp platform block and persists it via the
+ * official Homebridge UI config SDK. This goes through the same
+ * getPluginConfig -> updatePluginConfig -> savePluginConfig flow the main
+ * "Settings" form uses, so it can't race with, or clobber, a save the user
+ * makes elsewhere in the UI at the same time.
+ */
+export function importDevice(
+  host: string,
+  name: string,
+): Promise<'imported' | 'already-configured'> {
+  return enqueue(() => doImportDevice(host, name));
+}
+
+/** Removes a device from the TasmotaHttp platform block, same save flow as importDevice. */
+export function removeDevice(host: string): Promise<'removed' | 'not-found'> {
+  return enqueue(() => doRemoveDevice(host));
+}
+
 async function doImportDevice(
   host: string,
   name: string,
 ): Promise<'imported' | 'already-configured'> {
 
-  window.homebridge?.toast?.success(
-    `Fetching current config for ${name}...`,
-    'Debug: import starting',
-  );
-
   const pluginConfig = await window.homebridge.getPluginConfig();
 
   let platform = pluginConfig.find(
     block => block.platform === PLATFORM_NAME,
-  );
-
-  window.homebridge?.toast?.success(
-    platform
-      ? `Found TasmotaHttp block with ${platform.devices?.length ?? 0} device(s).`
-      : 'No TasmotaHttp block found in config - creating one.',
-    'Debug: config read',
   );
 
   if (!platform) {
@@ -86,12 +85,6 @@ async function doImportDevice(
   const existing = platform.devices.find(device => device.host === host);
 
   if (existing) {
-
-    window.homebridge?.toast?.success(
-      `${host} is already in the config - skipping.`,
-      'Debug: already configured',
-    );
-
     return 'already-configured';
   }
 
@@ -102,18 +95,34 @@ async function doImportDevice(
     pollInterval: 2,
   });
 
-  window.homebridge?.toast?.success(
-    `Saving ${platform.devices.length} device(s), including ${name} (${host}).`,
-    'Debug: about to save',
+  await window.homebridge.updatePluginConfig(pluginConfig);
+  await window.homebridge.savePluginConfig();
+
+  return 'imported';
+}
+
+async function doRemoveDevice(
+  host: string,
+): Promise<'removed' | 'not-found'> {
+
+  const pluginConfig = await window.homebridge.getPluginConfig();
+
+  const platform = pluginConfig.find(
+    block => block.platform === PLATFORM_NAME,
   );
+
+  const index = platform?.devices?.findIndex(
+    device => device.host === host,
+  ) ?? -1;
+
+  if (!platform?.devices || index === -1) {
+    return 'not-found';
+  }
+
+  platform.devices.splice(index, 1);
 
   await window.homebridge.updatePluginConfig(pluginConfig);
   await window.homebridge.savePluginConfig();
 
-  window.homebridge?.toast?.success(
-    `Save call for ${name} completed.`,
-    'Debug: saved',
-  );
-
-  return 'imported';
+  return 'removed';
 }

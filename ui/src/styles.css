@@ -10,6 +10,8 @@
     --accent-fg: #ffffff;
     --success-bg: rgba(22, 163, 74, 0.14);
     --success-fg: #16a34a;
+    --danger-fg: #dc2626;
+    --danger-border: rgba(220, 38, 38, 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +23,8 @@
         --border: rgba(255, 255, 255, 0.12);
         --success-bg: rgba(74, 222, 128, 0.16);
         --success-fg: #4ade80;
+        --danger-fg: #f87171;
+        --danger-border: rgba(248, 113, 113, 0.45);
     }
 }
 
@@ -118,6 +122,24 @@ button.primary:disabled {
     padding: 12px 14px;
     border-radius: 8px;
     background: var(--surface);
+}
+
+.device.configured-row {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.removeButton {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--danger-fg);
+    border-color: var(--danger-border);
+    background: transparent;
+}
+
+.removeButton:not(:disabled):hover {
+    background: var(--danger-border);
 }
 
 label.device.selectable {
