@@ -32,6 +32,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
   private readonly configuredAccessories = new Set<string>();
+  private readonly accessoryHandlers = new Map<string, TasmotaLightAccessory>();
 
   constructor(
     log: Logging,
@@ -74,11 +75,13 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
     this.configuredAccessories.add(accessory.UUID);
 
-    new TasmotaLightAccessory(
+    const handler = new TasmotaLightAccessory(
       this,
       accessory,
       device,
     );
+
+    this.accessoryHandlers.set(accessory.UUID, handler);
   }
 
   private discoverDevices(): void {
@@ -143,6 +146,7 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
       } else {
 
         accessory.context.device = device;
+        this.accessoryHandlers.get(uuid)?.updateDevice(device);
 
         this.log.debug(
           `Using cached accessory '${device.name}'`,
@@ -181,6 +185,8 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
       );
 
       for (const accessory of staleAccessories) {
+        this.accessoryHandlers.get(accessory.UUID)?.stop();
+        this.accessoryHandlers.delete(accessory.UUID);
         this.cachedAccessories.delete(accessory.UUID);
         this.configuredAccessories.delete(accessory.UUID);
       }

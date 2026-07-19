@@ -5,8 +5,8 @@ import { TasmotaDeviceConfig, TasmotaStatus11 } from './types';
 
 export class TasmotaLightAccessory {
   private readonly service: Service;
-  private readonly client: TasmotaClient;
-  private readonly pollIntervalMs: number;
+  private client: TasmotaClient;
+  private pollIntervalMs: number;
   private pollingTimer?: NodeJS.Timeout;
   private isOn = false;
   private brightness = 100;
@@ -14,7 +14,7 @@ export class TasmotaLightAccessory {
   constructor(
     private readonly platform: TasmotaHttpPlatform,
     private readonly accessory: PlatformAccessory,
-    private readonly device: TasmotaDeviceConfig,
+    private device: TasmotaDeviceConfig,
   ) {
     this.client = new TasmotaClient(device, platform.log);
 
@@ -37,6 +37,34 @@ export class TasmotaLightAccessory {
 
   public identify(): void {
     this.platform.log.info(`Identify requested for ${this.device.name}`);
+  }
+
+  /**
+   * Applies a config reload for a device that mapped to the same accessory
+   * UUID as before (name/host/port unchanged, since those make up the UUID
+   * itself). Only pollInterval can realistically differ here, so this just
+   * rebuilds the client/poll timer against the new device config.
+   */
+  public updateDevice(device: TasmotaDeviceConfig): void {
+
+    this.device = device;
+    this.client = new TasmotaClient(device, this.platform.log);
+    this.pollIntervalMs = Math.max(1, device.pollInterval ?? 2) * 1000;
+
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+    }
+
+    this.startPolling();
+  }
+
+  /** Stops background polling. Must be called when this accessory becomes stale. */
+  public stop(): void {
+
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = undefined;
+    }
   }
 
   private createService(): Service {
