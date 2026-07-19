@@ -75,12 +75,22 @@ input[type="text"] {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 6px;
 }
 
 .subnet-row label {
     font-size: 13px;
     color: var(--fg-muted);
+}
+
+.subnet-hint {
+    margin: 0 0 14px;
+    font-size: 12px;
+    color: var(--fg-muted);
+}
+
+.subnet-hint strong {
+    color: var(--fg);
 }
 
 .subnet-row input[type="text"] {

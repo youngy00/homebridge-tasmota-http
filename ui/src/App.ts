@@ -17,6 +17,10 @@ export function App(): string {
         />
         <button id="saveSubnetButton">Save</button>
       </div>
+      <p class="subnet-hint">
+        First three octets only, e.g. <strong>10.0.1</strong> for the
+        10.0.1.0/24 network — scans 10.0.1.1 through 10.0.1.254.
+      </p>
 
       <button id="scanButton">
         Scan Network
