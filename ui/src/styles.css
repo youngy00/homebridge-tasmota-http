@@ -115,6 +115,36 @@ button.primary:disabled {
     margin-top: 12px;
 }
 
+.confirm-panel {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--warning-fg);
+    background: var(--warning-bg);
+}
+
+.confirm-message {
+    margin: 0 0 8px;
+    font-weight: 600;
+}
+
+.confirm-list {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+
+.confirm-note {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--fg-muted);
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 .device-list {
     display: flex;
     flex-direction: column;

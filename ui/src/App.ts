@@ -181,6 +181,65 @@ function buildApplyBar(): HTMLElement {
   return bar;
 }
 
+/**
+ * An in-page confirmation instead of window.confirm(): Homebridge UI loads
+ * this custom UI in a sandboxed iframe, and native confirm()/alert() dialogs
+ * can be silently blocked there with no error and no visible prompt - which
+ * just looks like the button doing nothing.
+ */
+function buildConfirmPanel(
+  removals: HTMLButtonElement[],
+  onConfirm: () => void,
+  onCancel: () => void,
+): HTMLElement {
+
+  const panel = document.createElement('div');
+  panel.className = 'confirm-panel';
+
+  const message = document.createElement('p');
+  message.className = 'confirm-message';
+  message.textContent =
+    `Remove ${removals.length} device${removals.length === 1 ? '' : 's'}?`;
+  panel.appendChild(message);
+
+  const list = document.createElement('ul');
+  list.className = 'confirm-list';
+
+  removals.forEach(button => {
+    const item = document.createElement('li');
+    item.textContent = button.dataset.name ?? '';
+    list.appendChild(item);
+  });
+
+  panel.appendChild(list);
+
+  const note = document.createElement('p');
+  note.className = 'confirm-note';
+  note.textContent =
+    'They will disappear from HomeKit after the next Homebridge restart.';
+  panel.appendChild(note);
+
+  const actions = document.createElement('div');
+  actions.className = 'confirm-actions';
+
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.textContent = 'Cancel';
+  cancelButton.addEventListener('click', onCancel);
+
+  const proceedButton = document.createElement('button');
+  proceedButton.type = 'button';
+  proceedButton.className = 'primary';
+  proceedButton.textContent = 'Yes, apply changes';
+  proceedButton.addEventListener('click', onConfirm);
+
+  actions.appendChild(cancelButton);
+  actions.appendChild(proceedButton);
+  panel.appendChild(actions);
+
+  return panel;
+}
+
 function importCheckboxes(results: HTMLElement): HTMLInputElement[] {
   return Array.from(
     results.querySelectorAll<HTMLInputElement>('.importCheckbox:not(:disabled)'),
@@ -255,6 +314,45 @@ function toggleRemoveMark(button: HTMLButtonElement, results: HTMLElement): void
   updateControls(results);
 }
 
+function handleApplyClick(results: HTMLElement): void {
+
+  const applyButton =
+    results.querySelector<HTMLButtonElement>('#applyChangesButton');
+
+  const bar = results.querySelector<HTMLElement>('.apply-bar');
+
+  const checkboxes = importCheckboxes(results).filter(
+    checkbox => checkbox.checked,
+  );
+
+  const removals = markedForRemoval(results);
+
+  if (!applyButton || !bar || (checkboxes.length === 0 && removals.length === 0)) {
+    return;
+  }
+
+  if (removals.length === 0) {
+    applyChanges(results);
+    return;
+  }
+
+  const panel = buildConfirmPanel(
+    removals,
+    () => {
+      panel.remove();
+      applyButton.hidden = false;
+      applyChanges(results);
+    },
+    () => {
+      panel.remove();
+      applyButton.hidden = false;
+    },
+  );
+
+  applyButton.hidden = true;
+  bar.appendChild(panel);
+}
+
 async function applyChanges(results: HTMLElement): Promise<void> {
 
   const applyButton =
@@ -268,20 +366,6 @@ async function applyChanges(results: HTMLElement): Promise<void> {
 
   if (!applyButton || (checkboxes.length === 0 && removals.length === 0)) {
     return;
-  }
-
-  if (removals.length > 0) {
-
-    const names = removals.map(button => button.dataset.name).join('\n');
-
-    const confirmed = window.confirm(
-      `Remove ${removals.length} device(s)?\n\n${names}\n\n` +
-      'They will disappear from HomeKit after the next Homebridge restart.',
-    );
-
-    if (!confirmed) {
-      return;
-    }
   }
 
   const selectAll =
@@ -404,7 +488,7 @@ export function initialize(): void {
     const target = event.target as HTMLElement;
 
     if (target.id === 'applyChangesButton') {
-      applyChanges(results);
+      handleApplyClick(results);
       return;
     }
 
