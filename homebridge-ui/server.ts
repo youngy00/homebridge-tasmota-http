@@ -1,6 +1,7 @@
 import { HomebridgePluginUiServer } from '@homebridge/plugin-ui-utils';
 import fs from 'node:fs/promises';
-import http from 'node:http';
+
+import { TasmotaDiscovery } from '../src/discovery';
 
 interface PluginDevice {
   name: string;
@@ -23,92 +24,6 @@ interface UiDevice {
   name: string;
   host: string;
   configured: boolean;
-}
-
-interface DiscoveredDevice {
-  ip: string;
-  friendlyName: string;
-}
-
-class TasmotaDiscovery {
-
-  constructor(
-    private readonly timeout = 1000,
-    private readonly concurrency = 25,
-  ) {}
-
-  public async scanSubnet(subnet: string): Promise<DiscoveredDevice[]> {
-
-    const devices: DiscoveredDevice[] = [];
-    let current = 1;
-
-    const worker = async () => {
-      while (current <= 254) {
-        const ip = `${subnet}.${current++}`;
-        const device = await this.discoverHost(ip);
-
-        if (device) {
-          devices.push(device);
-        }
-      }
-    };
-
-    await Promise.all(
-      Array.from({ length: this.concurrency }, () => worker()),
-    );
-
-    devices.sort((a, b) =>
-      a.ip.localeCompare(b.ip, undefined, { numeric: true }),
-    );
-
-    return devices;
-  }
-
-  private async discoverHost(ip: string): Promise<DiscoveredDevice | null> {
-
-    const status = await this.request(ip, 'Status 0');
-
-    if (!status?.Status) {
-      return null;
-    }
-
-    return {
-      ip,
-      friendlyName: status.Status.FriendlyName?.[0] ?? 'Unknown',
-    };
-  }
-
-  private request(ip: string, command: string): Promise<any> {
-
-    const url = `http://${ip}/cm?cmnd=${encodeURIComponent(command)}`;
-
-    return new Promise(resolve => {
-
-      const req = http.get(url, res => {
-
-        let body = '';
-
-        res.on('data', chunk => {
-          body += chunk;
-        });
-
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(body));
-          } catch {
-            resolve(null);
-          }
-        });
-      });
-
-      req.setTimeout(this.timeout, () => {
-        req.destroy();
-        resolve(null);
-      });
-
-      req.on('error', () => resolve(null));
-    });
-  }
 }
 
 /**
@@ -159,7 +74,10 @@ class TasmotaUiServer extends HomebridgePluginUiServer {
         );
       }
 
-      const discovery = new TasmotaDiscovery();
+      const discovery = new TasmotaDiscovery({
+        info: (message) => console.log(message),
+      });
+
       const discovered = await discovery.scanSubnet(config.scanSubnet);
 
       const configuredHosts = new Set(
