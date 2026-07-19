@@ -11,45 +11,67 @@ export function App(): string {
         Scan Network
       </button>
 
-      <hr>
-
       <div id="results">
-        No scan performed.
+        <p class="empty">No scan performed.</p>
       </div>
 
     </div>
   `;
 }
 
-function deviceRow(device: UiDevice): HTMLElement {
-
-  const row = document.createElement('div');
-  row.className = 'device';
-
-  if (!device.configured) {
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'importCheckbox';
-    checkbox.dataset.host = device.host;
-    checkbox.dataset.name = device.name;
-
-    row.appendChild(checkbox);
-    row.appendChild(document.createTextNode(' '));
-  }
-
-  const label = document.createElement('strong');
-  label.textContent = device.name;
-  row.appendChild(label);
-
-  row.appendChild(document.createElement('br'));
-  row.appendChild(document.createTextNode(`IP: ${device.host}`));
-  row.appendChild(document.createElement('br'));
+function statusBadge(configured: boolean): HTMLElement {
 
   const status = document.createElement('span');
-  status.className = 'status';
-  status.textContent = `Status: ${device.configured ? 'Configured' : 'Import'}`;
-  row.appendChild(status);
+  status.className = `status ${configured ? 'configured' : 'pending'}`;
+  status.textContent = configured ? '✓ Configured' : 'Available to import';
+
+  return status;
+}
+
+function deviceInfo(device: UiDevice): HTMLElement {
+
+  const info = document.createElement('div');
+  info.className = 'device-info';
+
+  const name = document.createElement('span');
+  name.className = 'device-name';
+  name.textContent = device.name;
+
+  const ip = document.createElement('span');
+  ip.className = 'device-ip';
+  ip.textContent = device.host;
+
+  info.appendChild(name);
+  info.appendChild(ip);
+  info.appendChild(statusBadge(device.configured));
+
+  return info;
+}
+
+function deviceRow(device: UiDevice): HTMLElement {
+
+  if (device.configured) {
+
+    const row = document.createElement('div');
+    row.className = 'device';
+    row.appendChild(deviceInfo(device));
+
+    return row;
+  }
+
+  // Unconfigured rows are a <label> so tapping anywhere on the card toggles
+  // the checkbox, not just the small checkbox hitbox itself.
+  const row = document.createElement('label');
+  row.className = 'device selectable';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'importCheckbox';
+  checkbox.dataset.host = device.host;
+  checkbox.dataset.name = device.name;
+
+  row.appendChild(checkbox);
+  row.appendChild(deviceInfo(device));
 
   return row;
 }
@@ -59,24 +81,28 @@ function buildControls(unconfiguredCount: number): HTMLElement {
   const controls = document.createElement('div');
   controls.className = 'controls';
 
+  const selectAllWrapper = document.createElement('label');
+  selectAllWrapper.className = 'select-all';
+
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
   selectAll.id = 'selectAllCheckbox';
   selectAll.disabled = unconfiguredCount === 0;
 
-  const selectAllLabel = document.createElement('label');
-  selectAllLabel.htmlFor = 'selectAllCheckbox';
-  selectAllLabel.textContent = ' Select all';
+  const selectAllText = document.createElement('span');
+  selectAllText.textContent = 'Select all';
+
+  selectAllWrapper.appendChild(selectAll);
+  selectAllWrapper.appendChild(selectAllText);
 
   const importButton = document.createElement('button');
   importButton.id = 'importSelectedButton';
+  importButton.className = 'primary';
   importButton.textContent = 'Import Selected (0)';
   importButton.disabled = true;
 
-  controls.appendChild(selectAll);
-  controls.appendChild(selectAllLabel);
+  controls.appendChild(selectAllWrapper);
   controls.appendChild(importButton);
-  controls.appendChild(document.createElement('hr'));
 
   return controls;
 }
@@ -150,8 +176,8 @@ async function importSelected(results: HTMLElement): Promise<void> {
 
     const host = checkbox.dataset.host ?? '';
     const name = checkbox.dataset.name ?? '';
-    const statusEl =
-      checkbox.closest('.device')?.querySelector<HTMLElement>('.status');
+    const row = checkbox.closest('.device');
+    const statusEl = row?.querySelector<HTMLElement>('.status');
 
     importButton.textContent = `Importing ${done}/${checkboxes.length}...`;
 
@@ -160,12 +186,15 @@ async function importSelected(results: HTMLElement): Promise<void> {
       const result = await importDevice(host, name);
 
       if (statusEl) {
+        statusEl.className = 'status configured';
         statusEl.textContent =
-          `Status: ${result === 'imported' ? 'Imported' : 'Already configured'}`;
+          result === 'imported' ? '✓ Imported' : '✓ Already configured';
       }
 
+      row?.classList.remove('selectable');
       checkbox.checked = false;
       checkbox.disabled = true;
+      checkbox.hidden = true;
 
     } catch (error) {
 
@@ -225,32 +254,34 @@ export function initialize(): void {
 
   button.addEventListener('click', async () => {
 
-    results.textContent = 'Scanning...';
+    results.replaceChildren();
+    results.innerHTML = '<p class="empty">Scanning...</p>';
 
     try {
 
       const devices = await request<UiDevice[]>('/scan');
 
       if (devices.length === 0) {
-        results.textContent = 'No Tasmota devices found.';
+        results.innerHTML = '<p class="empty">No Tasmota devices found.</p>';
         return;
       }
 
       const unconfiguredCount =
         devices.filter(device => !device.configured).length;
 
+      const list = document.createElement('div');
+      list.className = 'device-list';
+      devices.forEach(device => list.appendChild(deviceRow(device)));
+
       results.replaceChildren(
         buildControls(unconfiguredCount),
-        ...devices.flatMap(device => [
-          deviceRow(device),
-          document.createElement('hr'),
-        ]),
+        list,
       );
 
     } catch (error) {
 
       console.error(error);
-      results.textContent = 'Scan failed.';
+      results.innerHTML = '<p class="empty">Scan failed.</p>';
     }
   });
 }
