@@ -269,9 +269,13 @@ export function initialize(): void {
       const unconfiguredCount =
         devices.filter(device => !device.configured).length;
 
+      const sorted = [...devices].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true }),
+      );
+
       const list = document.createElement('div');
       list.className = 'device-list';
-      devices.forEach(device => list.appendChild(deviceRow(device)));
+      sorted.forEach(device => list.appendChild(deviceRow(device)));
 
       results.replaceChildren(
         buildControls(unconfiguredCount),
