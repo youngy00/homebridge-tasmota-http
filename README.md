@@ -10,6 +10,17 @@ HTTP-only Homebridge dynamic platform for Tasmota lights.
 - No MQTT and no Home Assistant dependency
 - Does not implement RGB or colour temperature
 
+## Development
+
+```bash
+npm install
+npm run build   # builds ui/, the plugin, and the config-UI server into dist/
+```
+
+`ui/` is a separate Vite project for the custom config-UI frontend; `npm run build`
+builds it automatically as part of the root build, so editing `ui/src/*` and
+running `npm run build` from the repo root is enough — no manual copy step.
+
 ## Example configuration
 
 ```json

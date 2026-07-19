@@ -1,5 +1,4 @@
 import http from 'node:http';
-import https from 'node:https';
 import { Logging } from 'homebridge';
 import {
   TasmotaDeviceConfig,
@@ -53,12 +52,7 @@ export class TasmotaClient {
         `[${this.device.name}] HTTP -> ${command}`,
       );
 
-      const transport =
-        url.startsWith('https://')
-          ? https
-          : http;
-
-      const req = transport.get(url, (res) => {
+      const req = http.get(url, (res) => {
 
         let body = '';
 

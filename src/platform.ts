@@ -9,31 +9,19 @@ import {
 
 import { TasmotaLightAccessory } from './accessory';
 import {
-  TasmotaDiscovery,
-  DiscoveredTasmotaDevice,
-} from './discovery';
-import {
   TasmotaDeviceConfig,
   TasmotaPlatformConfig,
 } from './types';
 
-import {
-  DeviceManager,
-  ManagedDevice,
-} from './device-manager';
-
-import { ConfigManager } from './config-manager';
+import { ManagedDevice } from './device-manager';
 import { DiscoveryService } from './discovery-service';
-import { UiService } from './ui-service';
+import { PLUGIN_VERSION } from './settings';
 
 export const PLUGIN_NAME = 'homebridge-tasmota-local';
 export const PLATFORM_NAME = 'TasmotaHttp';
 
+export class TasmotaHttpPlatform implements DynamicPlatformPlugin {
 
-export class TasmotaHttpPlatform implements DynamicPlatformPlugin, UiService {
-
-
-  
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
   public readonly log: Logging;
@@ -45,26 +33,24 @@ export class TasmotaHttpPlatform implements DynamicPlatformPlugin, UiService {
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
   private readonly configuredAccessories = new Set<string>();
 
-constructor(
-  log: Logging,
-  config: TasmotaPlatformConfig,
-  api: API,
-) {
+  constructor(
+    log: Logging,
+    config: TasmotaPlatformConfig,
+    api: API,
+  ) {
 
-  this.log = log;
-  this.config = config;
+    this.log = log;
+    this.config = config;
     this.api = api;
 
     this.Service = api.hap.Service;
     this.Characteristic = api.hap.Characteristic;
 
-this.discoveryService = new DiscoveryService(
-  this.log,
-);
+    this.discoveryService = new DiscoveryService(this.log);
 
     this.api.on('didFinishLaunching', async () => {
       this.discoverDevices();
-     await this.runDiscovery();
+      await this.runDiscovery();
     });
   }
 
@@ -100,12 +86,11 @@ this.discoveryService = new DiscoveryService(
     const devices = Array.isArray(this.config.devices)
       ? this.config.devices
       : [];
-this.discoveryService.setConfiguredDevices(
-  devices,
-);
-    
+
+    this.discoveryService.setConfiguredDevices(devices);
+
     this.log.info('────────────────────────────────────');
-    this.log.info('Homebridge Tasmota Local v0.4.0-dev');
+    this.log.info(`Homebridge Tasmota Local v${PLUGIN_VERSION}`);
     this.log.info(`Configured devices : ${devices.length}`);
     this.log.info('────────────────────────────────────');
 
@@ -151,10 +136,7 @@ this.discoveryService.setConfiguredDevices(
 
         accessory.context.device = device;
 
-        this.cachedAccessories.set(
-          uuid,
-          accessory,
-        );
+        this.cachedAccessories.set(uuid, accessory);
 
         accessoriesToRegister.push(accessory);
 
@@ -207,87 +189,45 @@ this.discoveryService.setConfiguredDevices(
     this.log.info('Platform initialisation complete.');
   }
 
-public async runDiscovery(): Promise<ManagedDevice[]> {
+  /**
+   * Subnet scan run at startup purely to print an informational list of
+   * discovered-but-unconfigured devices to the log. This has no effect on
+   * config.json — configuring a device is done through the custom config
+   * UI (see homebridge-ui/), which persists via the Homebridge UI SDK.
+   */
+  public async runDiscovery(): Promise<ManagedDevice[]> {
 
-  if (!this.config.scanSubnet) {
-    return [];
-  }
+    if (!this.config.scanSubnet) {
+      return [];
+    }
 
-  const managed = await this.discoveryService.scan(
-    this.config.scanSubnet,
-  );
-
-  this.log.info(
-    `Discovery complete. Found ${managed.length} device(s).`,
-  );
-
-  this.log.info('');
-  this.log.info('Discovered devices');
-  this.log.info('────────────────────────────────────');
-
-  for (const device of managed) {
-
-    const status = device.configured
-      ? '✓ Configured'
-      : '+ Import';
-
-    this.log.info(
-      `${status.padEnd(14)} ${device.discovered.friendlyName} (${device.discovered.ip})`,
+    const managed = await this.discoveryService.scan(
+      this.config.scanSubnet,
     );
 
+    this.log.info(
+      `Discovery complete. Found ${managed.length} device(s).`,
+    );
+
+    this.log.info('');
+    this.log.info('Discovered devices');
+    this.log.info('────────────────────────────────────');
+
+    for (const device of managed) {
+
+      const status = device.configured
+        ? '✓ Configured'
+        : '+ Import';
+
+      this.log.info(
+        `${status.padEnd(14)} ${device.discovered.friendlyName} (${device.discovered.ip})`,
+      );
+    }
+
+    return managed;
   }
 
-  return managed;
-
-}
-
-public async scan(): Promise<ManagedDevice[]> {
-
-  return this.runDiscovery();
-
-}
-public getDiscoveredDevices(): DiscoveredTasmotaDevice[] {
-
-  return this.discoveryService.getDiscoveredDevices();
-
-}
-
-public getImportableDevices(): DiscoveredTasmotaDevice[] {
-
-  return this.discoveryService.getImportableDevices();
-
-}
-
-public getManagedDevices(): ManagedDevice[] {
-
-  return this.discoveryService.getManagedDevices();
-
-}
-
-
-public async importDevice(
-  host: string,
-): Promise<TasmotaDeviceConfig | undefined> {
-
-  return this.discoveryService.importDevice(host);
-
-}
-
-public async import(
-  host: string,
-): Promise<void> {
-
-  const device = await this.importDevice(host);
-
-  if (!device) {
-    throw new Error(`Device '${host}' was not found.`);
-  }
-
-}
-
-  private getAccessoryUuid(
-    device: TasmotaDeviceConfig,
-  ): string {
+  private getAccessoryUuid(device: TasmotaDeviceConfig): string {
 
     return this.api.hap.uuid.generate(
       `${PLUGIN_NAME}:${device.name}:${device.host}:${device.port ?? 80}`,

@@ -37,81 +37,50 @@ class TasmotaDiscovery {
     private readonly concurrency = 25,
   ) {}
 
-  public async scanSubnet(
-    subnet: string,
-  ): Promise<DiscoveredDevice[]> {
+  public async scanSubnet(subnet: string): Promise<DiscoveredDevice[]> {
 
     const devices: DiscoveredDevice[] = [];
-
     let current = 1;
 
     const worker = async () => {
-
       while (current <= 254) {
-
         const ip = `${subnet}.${current++}`;
-
         const device = await this.discoverHost(ip);
 
         if (device) {
           devices.push(device);
         }
-
       }
-
     };
 
     await Promise.all(
-      Array.from(
-        { length: this.concurrency },
-        () => worker(),
-      ),
+      Array.from({ length: this.concurrency }, () => worker()),
     );
 
     devices.sort((a, b) =>
-      a.ip.localeCompare(
-        b.ip,
-        undefined,
-        { numeric: true },
-      ),
+      a.ip.localeCompare(b.ip, undefined, { numeric: true }),
     );
 
     return devices;
-
   }
 
-  private async discoverHost(
-    ip: string,
-  ): Promise<DiscoveredDevice | null> {
+  private async discoverHost(ip: string): Promise<DiscoveredDevice | null> {
 
-    const status = await this.request(
-      ip,
-      'Status 0',
-    );
+    const status = await this.request(ip, 'Status 0');
 
     if (!status?.Status) {
       return null;
     }
 
     return {
-
       ip,
-
-      friendlyName:
-        status.Status.FriendlyName?.[0] ??
-        'Unknown',
-
+      friendlyName: status.Status.FriendlyName?.[0] ?? 'Unknown',
     };
-
   }
 
-  private request(
-    ip: string,
-    command: string,
-  ): Promise<any> {
+  private request(ip: string, command: string): Promise<any> {
 
-    const url =
-      `http://${ip}/cm?cmnd=${encodeURIComponent(command)}`;
+    const url = `http://${ip}/cm?cmnd=${encodeURIComponent(command)}`;
 
     return new Promise(resolve => {
 
@@ -124,31 +93,37 @@ class TasmotaDiscovery {
         });
 
         res.on('end', () => {
-
           try {
             resolve(JSON.parse(body));
           } catch {
             resolve(null);
           }
-
         });
-
       });
 
       req.setTimeout(this.timeout, () => {
-
         req.destroy();
         resolve(null);
-
       });
 
       req.on('error', () => resolve(null));
-
     });
-
   }
-
 }
+
+/**
+ * Server-side handlers for the custom config UI.
+ *
+ * IMPORTANT: this class must never write to `config.json` itself. The main
+ * Homebridge UI owns that file, and only the browser-side `window.homebridge`
+ * SDK (`getPluginConfig` / `updatePluginConfig` / `savePluginConfig`) knows
+ * how to update it safely — that's the same mechanism the "Settings" form
+ * uses when the user clicks Save. A plugin process reading the file,
+ * editing it, and writing it back out on its own can race with that save
+ * and clobber changes (this used to overwrite/lose config here). So this
+ * server only ever *reads* config, for informational endpoints like /scan;
+ * all writes happen client-side in ui/src/App.ts.
+ */
 class TasmotaUiServer extends HomebridgePluginUiServer {
 
   constructor() {
@@ -161,17 +136,16 @@ class TasmotaUiServer extends HomebridgePluginUiServer {
 
     this.onRequest('/config', async () => {
 
-      const config = await this.getPluginConfig();
+      const config = await this.readPlatformConfig();
 
       return {
         scanSubnet: config?.scanSubnet ?? null,
       };
-
     });
 
     this.onRequest('/scan', async () => {
 
-      const config = await this.getPluginConfig();
+      const config = await this.readPlatformConfig();
 
       if (!config) {
         throw new Error(
@@ -186,194 +160,38 @@ class TasmotaUiServer extends HomebridgePluginUiServer {
       }
 
       const discovery = new TasmotaDiscovery();
+      const discovered = await discovery.scanSubnet(config.scanSubnet);
 
-      const discovered =
-        await discovery.scanSubnet(
-          config.scanSubnet,
-        );
+      const configuredHosts = new Set(
+        (config.devices ?? []).map(device => device.host),
+      );
 
-const configuredHosts = new Set(
-  (config.devices ?? []).map(device => device.host),
-);
+      const devices: UiDevice[] = discovered.map(device => ({
+        name: device.friendlyName,
+        host: device.ip,
+        configured: configuredHosts.has(device.ip),
+      }));
 
-const devices: UiDevice[] =
-  discovered.map(device => ({
-
-    name: device.friendlyName,
-
-    host: device.ip,
-
-    configured: configuredHosts.has(device.ip),
-
-  }));
-
-return devices;
-
+      return devices;
     });
-
-this.onRequest('/import', async (payload) => {
-
-  const body = payload as {
-    host?: string;
-    name?: string;
-  };
-
-  if (!body.host) {
-    throw new Error('No host specified.');
-  }
-
-  if (!this.homebridgeConfigPath) {
-    throw new Error('homebridgeConfigPath unavailable.');
-  }
-
-  console.log(
-  '[Tasmota UI] homebridgeConfigPath =',
-  this.homebridgeConfigPath,
-  );
-  
-  console.log('[Tasmota UI] Import requested:', body);
-
-  const json = await fs.readFile(
-    this.homebridgeConfigPath,
-    'utf8',
-  );
-
-  console.log(
-  '[Tasmota UI] Current config length:',
-  json.length,
-  );
-
-  const fullConfig =
-    JSON.parse(json) as HomebridgeConfig;
-
-  const platform =
-    fullConfig.platforms?.find(
-      p => p.platform === 'TasmotaHttp',
-    );
-
-  if (!platform) {
-    throw new Error('Platform not found.');
-  }
-
-  platform.devices ??= [];
-
-  const existing = platform.devices.find(
-    device => device.host === body.host,
-  );
-
-  if (!existing) {
-
-    platform.devices.push({
-
-      name: body.name ?? body.host,
-
-      host: body.host,
-
-      port: 80,
-
-      pollInterval: 2,
-
-    });
-
-    console.log(
-      '[Tasmota UI] Writing config with',
-      platform.devices.length,
-      'devices',
-    );
-
-await fs.writeFile(
-  this.homebridgeConfigPath,
-  JSON.stringify(fullConfig, null, 4),
-  'utf8',
-);
-
-const stat1 = await fs.stat(this.homebridgeConfigPath);
-
-console.log(
-  '[Tasmota UI] After write:',
-  stat1.size,
-  stat1.mtime.toISOString(),
-);
-
-const configPath = this.homebridgeConfigPath;
-
-setTimeout(async () => {
-  try {
-    if (!configPath) {
-      return;
-    }
-
-    const stat2 = await fs.stat(configPath);
-    const text = await fs.readFile(configPath, 'utf8');
-
-    console.log(
-      '[Tasmota UI] After 5 seconds:',
-      stat2.size,
-      stat2.mtime.toISOString(),
-    );
-
-    console.log(text);
-  } catch (err) {
-    console.error(err);
-  }
-}, 5000);
-
-const verify = await fs.readFile(
-  this.homebridgeConfigPath,
-  'utf8',
-);
-
-console.log(
-  '[Tasmota UI] Verify config length:',
-  verify.length,
-);
-
-console.log(verify);
-
-    console.log('[Tasmota UI] Config written successfully.');
-
-  } else {
-
-    console.log(
-      '[Tasmota UI] Device already exists:',
-      body.host,
-    );
-
-  }
-
-  return {
-    success: true,
-  };
-
-});
 
     this.ready();
-    
   }
 
-  private async getPluginConfig(): Promise<PluginConfig | undefined> {
+  /** Read-only lookup of this plugin's platform block. Never writes. */
+  private async readPlatformConfig(): Promise<PluginConfig | undefined> {
 
     if (!this.homebridgeConfigPath) {
-      throw new Error(
-        'homebridgeConfigPath is unavailable.',
-      );
+      throw new Error('homebridgeConfigPath is unavailable.');
     }
 
-    const json = await fs.readFile(
-      this.homebridgeConfigPath,
-      'utf8',
-    );
-
-    const config =
-      JSON.parse(json) as HomebridgeConfig;
+    const json = await fs.readFile(this.homebridgeConfigPath, 'utf8');
+    const config = JSON.parse(json) as HomebridgeConfig;
 
     return config.platforms?.find(
-      platform =>
-        platform.platform === 'TasmotaHttp',
+      platform => platform.platform === 'TasmotaHttp',
     );
-
   }
-
 }
-   
+
 new TasmotaUiServer();

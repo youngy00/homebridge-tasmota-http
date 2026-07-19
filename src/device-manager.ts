@@ -6,107 +6,43 @@ import {
   TasmotaDeviceConfig,
 } from './types';
 
-
 export interface ManagedDevice {
-
   discovered: DiscoveredTasmotaDevice;
-
   configured: boolean;
-
   configuredDevice?: TasmotaDeviceConfig;
-
 }
 
+/**
+ * Cross-references the results of a subnet scan against the devices the
+ * user has configured, purely for the informational startup log (see
+ * TasmotaHttpPlatform.runDiscovery). It does not read or write config.json.
+ */
 export class DeviceManager {
 
   private discoveredDevices: DiscoveredTasmotaDevice[] = [];
   private configuredDevices: TasmotaDeviceConfig[] = [];
 
-  //
-  // Configured Devices
-  //
-
-  public setConfiguredDevices(
-    devices: TasmotaDeviceConfig[],
-  ): void {
-
+  public setConfiguredDevices(devices: TasmotaDeviceConfig[]): void {
     this.configuredDevices = [...devices];
-
   }
 
-  public getConfiguredDevices():
-    TasmotaDeviceConfig[] {
-
-    return [...this.configuredDevices];
-
-  }
-
-  //
-  // Discovered Devices
-  //
-
-  public setDiscoveredDevices(
-    devices: DiscoveredTasmotaDevice[],
-  ): void {
-
+  public setDiscoveredDevices(devices: DiscoveredTasmotaDevice[]): void {
     this.discoveredDevices = [...devices];
-
   }
 
-  public getDiscoveredDevices():
-    DiscoveredTasmotaDevice[] {
+  public getManagedDevices(): ManagedDevice[] {
 
-    return [...this.discoveredDevices];
+    return this.discoveredDevices.map((device) => {
 
-  }
-
-public getImportableDevices():
-  DiscoveredTasmotaDevice[] {
-
-  return this.discoveredDevices.filter((discovered) => {
-
-    return !this.configuredDevices.some((configured) => {
-
-      return configured.host === discovered.ip;
-
-    });
-
-  });
-
-}
-
-public getManagedDevices():
-  ManagedDevice[] {
-
-  return this.discoveredDevices.map((device) => {
-
-    const configuredDevice =
-      this.configuredDevices.find(
+      const configuredDevice = this.configuredDevices.find(
         (configured) => configured.host === device.ip,
       );
 
-    return {
-
-      discovered: device,
-
-      configured: configuredDevice !== undefined,
-
-      configuredDevice,
-
-    };
-
-  });
-
-}
-  //
-  // Maintenance
-  //
-
-  public clear(): void {
-
-    this.discoveredDevices = [];
-    this.configuredDevices = [];
-
+      return {
+        discovered: device,
+        configured: configuredDevice !== undefined,
+        configuredDevice,
+      };
+    });
   }
-
 }

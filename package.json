@@ -1,7 +1,7 @@
 {
   "name": "homebridge-tasmota-local",
   "displayName": "Homebridge Tasmota Local",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Native HTTP Homebridge platform for Tasmota devices",
   "author": {
     "name": "youngy00",
@@ -28,7 +28,9 @@
     "apple-home"
   ],
 "scripts": {
-  "build": "tsc -p tsconfig.json && tsc -p homebridge-ui/tsconfig.json && rm -rf dist/homebridge-ui/public && cp -R homebridge-ui/public dist/homebridge-ui/public",
+  "build": "npm run build:ui && npm run build:server",
+  "build:ui": "npm --prefix ui install && npm --prefix ui run build",
+  "build:server": "tsc -p tsconfig.json && tsc -p homebridge-ui/tsconfig.json",
   "watch": "tsc -w -p tsconfig.json",
   "prepublishOnly": "npm run build"
 },
