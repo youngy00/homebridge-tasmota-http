@@ -29,8 +29,31 @@ export function request<T>(path: string, body?: unknown): Promise<T> {
  * getPluginConfig -> updatePluginConfig -> savePluginConfig flow the main
  * "Settings" form uses, so it can't race with, or clobber, a save the user
  * makes elsewhere in the UI at the same time.
+ *
+ * Calls are chained onto `importQueue` so that importing several devices in
+ * quick succession (clicking multiple "Import" buttons before the first
+ * save lands) can't race: each import only reads the config once the
+ * previous import has fully saved, instead of reading a stale snapshot and
+ * overwriting the previous import's change when it saves.
  */
-export async function importDevice(
+let importQueue: Promise<void> = Promise.resolve();
+
+export function importDevice(
+  host: string,
+  name: string,
+): Promise<'imported' | 'already-configured'> {
+
+  const result = importQueue.then(() => doImportDevice(host, name));
+
+  importQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return result;
+}
+
+async function doImportDevice(
   host: string,
   name: string,
 ): Promise<'imported' | 'already-configured'> {
