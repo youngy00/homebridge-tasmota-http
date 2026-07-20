@@ -40,3 +40,9 @@ running `npm run build` from the repo root is enough — no manual copy step.
   ]
 }
 ```
+On the Pi
+
+cd ~/homebridge-tasmota-http
+git pull origin develop
+npm run build
+docker restart homebridge-homebridge-1
